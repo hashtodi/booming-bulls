@@ -39,7 +39,7 @@ export default async function WelcomePage() {
             You&rsquo;re in.
           </h1>
           <p className="max-w-sm text-pretty text-sm leading-relaxed text-muted-foreground sm:text-base">
-          Welcome to {branding.name}. Your private invite is ready!
+            Welcome to {branding.name}. Your private invite is ready!
           </p>
         </div>
 

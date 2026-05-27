@@ -20,26 +20,42 @@ function signEd25519(message: string, privateKeyHex: string): string {
   return sig.toString("hex");
 }
 
-export type LemonnSession = {
-  access_token: string;
-  user_id: string;
-  client_id: string;
-  expires_at: string;
+// Open shape: Lemonn's response will grow over time. We type the fields we
+// know about today and tolerate additional keys via [k: string] without
+// trusting them.
+export type LemonnUserDetails = {
+  is_dra_matched?: boolean;
+  name?: string;
+  kyc_status?: string;
+  nse_cash_status?: string;
+  bse_cash_status?: string;
+  nse_fno_status?: string;
+  bse_fno_status?: string;
+  fno_order_executed?: boolean;
+  fno_order_executed_at?: string | null;
+  client_id?: string;
+  user_id?: string | number;
+  [k: string]: unknown;
 };
 
 export type LemonnUser = {
+  // A stable per-login identifier used for Telegram invite-link audit naming
+  // and our own logs. Prefers Lemonn's client_id when present, falls back to
+  // a short prefix of the request_token.
   id: string;
-  client_id: string;
-  access_token: string;
-  expires_at: string;
+  details: LemonnUserDetails;
 };
 
-export type VerifyResult =
-  | { eligible: true; user: LemonnUser }
-  | { eligible: false; user: LemonnUser | null; reason: string };
+// Discriminated union over every possible outcome of /callback. The route
+// handler maps each kind to a specific page / redirect.
+export type VerifyOutcome =
+  | { kind: "eligible"; user: LemonnUser }
+  | { kind: "not_associated"; user: LemonnUser }
+  | { kind: "kyc_pending"; user: LemonnUser }
+  | { kind: "not_trade_ready"; user: LemonnUser }
+  | { kind: "no_fno_trade"; user: LemonnUser }
+  | { kind: "transient_error"; reason: string };
 
-// Fields safe to log from a Lemonn response. NEVER include `data` (which
-// contains access_token) or any other field that could carry a credential.
 type LemonnErrorBody = {
   status?: unknown;
   msg?: unknown;
@@ -65,21 +81,48 @@ export function buildLemonnLoginUrl(): string {
   return url.toString();
 }
 
-async function exchangeRequestToken(
+async function fetchUserDetails(
   requestToken: string,
-): Promise<LemonnSession> {
+): Promise<LemonnUserDetails> {
   const signature = signEd25519(
     requestToken + env.LEMONN_API_KEY,
     env.LEMONN_SECRET_KEY,
   );
+  // Lemonn allowlists x-request-id values per partner account. Using a UUID
+  // returns a misleading "Invalid access token format" 401. The value comes
+  // from env so we can update it once Lemonn tells us the official one.
+  const requestId = env.LEMONN_REQUEST_ID;
 
-  const res = await fetch(env.LEMONN_SESSION_TOKEN_URL, {
-    method: "POST",
+  // Verbose debug — print the exact request we're sending plus a copy-pasteable
+  // curl command. Helps tell "our bug" from "Lemonn bug" when 401/4xx happens.
+  console.log("[lemonn] fetch-user-details request:", {
+    url: env.LEMONN_USER_DETAILS_URL,
+    method: "GET",
     headers: {
-      "Content-Type": "application/json",
       "x-api-key": env.LEMONN_API_KEY,
       "x-request-token": requestToken,
       "x-signature": signature,
+      "x-request-id": requestId,
+    },
+  });
+  console.log(
+    "[lemonn] curl equivalent:\n" +
+      [
+        `curl -i --location '${env.LEMONN_USER_DETAILS_URL}' \\`,
+        `  --header 'x-api-key: ${env.LEMONN_API_KEY}' \\`,
+        `  --header 'x-request-token: ${requestToken}' \\`,
+        `  --header 'x-signature: ${signature}' \\`,
+        `  --header 'x-request-id: ${requestId}'`,
+      ].join("\n"),
+  );
+
+  const res = await fetch(env.LEMONN_USER_DETAILS_URL, {
+    method: "GET",
+    headers: {
+      "x-api-key": env.LEMONN_API_KEY,
+      "x-request-token": requestToken,
+      "x-signature": signature,
+      "x-request-id": requestId,
     },
     cache: "no-store",
   });
@@ -93,92 +136,107 @@ async function exchangeRequestToken(
       safe = { status: "non_json_response" };
     }
     throw new Error(
-      `Lemonn session exchange returned HTTP ${res.status}: ${JSON.stringify(safe)}`,
+      `Lemonn fetch-user-details returned HTTP ${res.status}: ${JSON.stringify(safe)}`,
     );
   }
 
   const body = (await res.json()) as {
     status?: string;
     msg?: string;
-    data?: LemonnSession;
+    data?: LemonnUserDetails;
   };
 
-  if (body.status !== "success" || !body.data?.access_token) {
-    // Build a sanitized body for the error — drop `data` entirely so we never
-    // log access_token or anything else credential-shaped.
+  if (body.status !== "success" || !body.data) {
     throw new Error(
-      `Lemonn session exchange returned non-success: ${JSON.stringify(safeErrorBody(body))}`,
+      `Lemonn fetch-user-details returned non-success: ${JSON.stringify(safeErrorBody(body))}`,
     );
   }
 
-  // Dev-time visibility. Logs the metadata fields and a short token prefix so
-  // you can confirm the exchange worked without pasting the full bearer in logs.
-  console.log("[lemonn] session received:", {
-    user_id: body.data.user_id,
-    client_id: body.data.client_id,
-    expires_at: body.data.expires_at,
-    access_token_prefix: body.data.access_token.slice(0, 16) + "…",
-    access_token_length: body.data.access_token.length,
-  });
+  console.log(
+    "[lemonn] fetch-user-details response:",
+    JSON.stringify(
+      { status: body.status, msg: body.msg, data: body.data },
+      null,
+      2,
+    ),
+  );
 
   return body.data;
 }
 
-async function checkEligibility(session: LemonnSession): Promise<boolean> {
-  const url = env.LEMONN_ELIGIBILITY_URL;
-  if (!url) {
-    console.warn(
-      "[lemonn] LEMONN_ELIGIBILITY_URL not configured. Defaulting to eligible=true. " +
-        "Set this env var once Lemonn provides the eligibility endpoint.",
-    );
-    return true;
+// Eligibility decision tree. The first failing condition wins; later checks
+// assume earlier ones passed. Conservative defaults: missing fields treated
+// as the "fail" value so a malformed response never accidentally lets a user
+// through.
+//
+// Exported so the (deletable) dev test harness in src/app/test can dispatch
+// mocked details through the same logic without going through the network.
+export function decideOutcome(
+  user: LemonnUser,
+): Exclude<VerifyOutcome, { kind: "transient_error" }> {
+  const d = user.details;
+
+  if (d.is_dra_matched !== true) {
+    return { kind: "not_associated", user };
   }
 
-  // TODO: confirm the exact request shape (GET vs POST, auth header style,
-  // and the response field name) once Lemonn shares the endpoint contract.
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${session.access_token}` },
-    cache: "no-store",
-  });
+  if (d.kyc_status !== "COMPLETED") {
+    return { kind: "kyc_pending", user };
+  }
 
-  if (!res.ok) return false;
+  if (
+    d.nse_fno_status !== "TRADE_READY" ||
+    d.bse_fno_status !== "TRADE_READY"
+  ) {
+    return { kind: "not_trade_ready", user };
+  }
 
-  const body = (await res.json()) as Record<string, unknown>;
-  return Boolean(body.eligible ?? body.is_eligible);
+  if (d.fno_order_executed !== true) {
+    return { kind: "no_fno_trade", user };
+  }
+
+  return { kind: "eligible", user };
 }
 
 export async function verifyLemonnCallback(
   searchParams: Record<string, string | string[] | undefined>,
-): Promise<VerifyResult> {
+): Promise<VerifyOutcome> {
   const requestToken = first(searchParams.request_token);
   if (!requestToken) {
-    return { eligible: false, user: null, reason: "missing_request_token" };
+    return { kind: "transient_error", reason: "missing_request_token" };
   }
 
-  let session: LemonnSession;
+  let details: LemonnUserDetails;
   try {
-    session = await exchangeRequestToken(requestToken);
+    details = await fetchUserDetails(requestToken);
   } catch (err) {
-    console.error("[lemonn] session exchange failed:", err);
-    return { eligible: false, user: null, reason: "session_exchange_failed" };
+    console.error("[lemonn] fetch-user-details failed:", err);
+    return {
+      kind: "transient_error",
+      reason: "fetch_user_details_failed",
+    };
   }
 
   const user: LemonnUser = {
-    id: session.user_id,
-    client_id: session.client_id,
-    access_token: session.access_token,
-    expires_at: session.expires_at,
+    id: pickUserId(details, requestToken),
+    details,
   };
 
-  try {
-    const eligible = await checkEligibility(session);
-    return eligible
-      ? { eligible: true, user }
-      : { eligible: false, user, reason: "not_eligible" };
-  } catch (err) {
-    console.error("[lemonn] eligibility check failed:", err);
-    return { eligible: false, user, reason: "eligibility_check_failed" };
+  return decideOutcome(user);
+}
+
+// Prefer the human-readable `name` Lemonn returns (e.g. "HARSH TODI"). Falls
+// back to a request_token prefix when name is missing/empty so the audit
+// label is never blank.
+// Telegram caps invite-link names at 32 chars total; the "lemonn:" prefix
+// consumes 7, so the per-user portion is sliced to 25.
+function pickUserId(details: LemonnUserDetails, requestToken: string): string {
+  const name =
+    typeof details.name === "string" ? details.name.trim() : "";
+  if (name.length > 0) {
+    return name.slice(0, 25);
   }
+  return `rt:${requestToken.split("-")[0]}`;
 }
 
 function first(v: string | string[] | undefined): string | undefined {

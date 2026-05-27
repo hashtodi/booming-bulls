@@ -10,9 +10,17 @@ const serverEnvSchema = z.object({
 
   // Lemonn endpoints.
   LEMONN_LOGIN_URL: z.url(),
-  LEMONN_SESSION_TOKEN_URL: z.url(),
-  // TBD — Lemonn will provide this. While empty, eligibility defaults to true with a server warning.
-  LEMONN_ELIGIBILITY_URL: z.union([z.url(), z.literal("")]).optional(),
+  // Single endpoint that takes the request_token + signature and returns user
+  // details directly. Replaces the old two-step (generate_session_token →
+  // eligibility) flow.
+  LEMONN_USER_DETAILS_URL: z.url(),
+
+  // Lemonn appears to allowlist x-request-id values per partner. The value
+  // `canary-app-123` from their sample is currently the only one that gets
+  // past auth on our account — any other value (UUID, plain alphanumeric, or
+  // missing) returns a misleading "Invalid access token format" 401.
+  // Ask Lemonn for the official value(s) for production and update this env.
+  LEMONN_REQUEST_ID: z.string().min(1),
 
   // Telegram (placeholder until bot is admin on the channel).
   // Allow empty string so .env.local can be templated with TELEGRAM_BOT_TOKEN= etc.

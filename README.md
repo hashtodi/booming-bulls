@@ -1,6 +1,6 @@
 # Influencer → Lemonn → Telegram
 
-Landing page → Lemonn OAuth (OTP + PIN) → eligibility check → single-use Telegram invite link (or `/non-eligible`). The invite link is delivered to the user via an httpOnly cookie so it never appears in the page DOM, URL bar, or browser history — only the final `t.me/+...` redirect is visible.
+Landing page → Lemonn OAuth (OTP + PIN) → user-details check → single-use Telegram invite link (or `/non-eligible`). The invite link is delivered to the user via an httpOnly cookie so it never appears in the page DOM, URL bar, or browser history — only the final `t.me/+...` redirect is visible.
 
 This app is single-tenant — one deployment per influencer. Currently configured for **Booming Bulls**. To onboard a new influencer, clone the repo (or fork), deploy as a new Vercel project, and fill in their env values. No code changes.
 
@@ -35,13 +35,16 @@ Visit `http://localhost:3000`.
     ▼
 [ /callback?client_id=…&request_token=… ]   (registered with Lemonn offline)
     │   1. Ed25519-signs (request_token + api_key) using LEMONN_SECRET_KEY
-    │   2. POSTs to LEMONN_SESSION_TOKEN_URL → receives access_token
-    │   3. Calls eligibility endpoint (default: true while LEMONN_ELIGIBILITY_URL is empty)
+    │   2. GETs LEMONN_USER_DETAILS_URL with headers
+    │        x-api-key, x-request-token, x-signature, x-request-id
+    │      → returns user details (kyc_status, is_dra_matched, …)
+    │   3. Checks eligibility rules against the returned details
+    │      (currently a TODO stub that returns true for any successful fetch)
     │   4. Calls Telegram createChatInviteLink:
     │        chat_id = TELEGRAM_CHANNEL_ID
     │        member_limit = 1
     │        expire_date = now + 24h
-    │        name = "lemonn:<client_id>"
+    │        name = "lemonn:<id>"   (client_id if present, else request_token prefix)
     │      → fresh https://t.me/+xxxxx (unique per user)
     │   5. Wraps the URL in an HMAC-signed invite-token (key from INVITE_TOKEN_SECRET)
     │   6. Sets the token as httpOnly cookie "lemonn_invite_token"
@@ -61,12 +64,9 @@ Visit `http://localhost:3000`.
 
 Ineligible (or any failure along the way) → redirect to `/non-eligible`.
 
-## Lemonn OAuth — partner onboarding
+## Lemonn — partner onboarding
 
-Partners are onboarded **offline** by Lemonn. During onboarding you provide:
-
-- A **static outbound IP** for allowlisting (Vercel native or QuotaGuard — see Deployment).
-- A **redirect URL** (HTTPS in prod; `http://localhost:3000/callback` for dev).
+Partners are onboarded **offline** by Lemonn. During onboarding you provide a registered redirect URL (HTTPS in prod; `http://localhost:3000/callback` for dev).
 
 Lemonn issues:
 
@@ -74,7 +74,29 @@ Lemonn issues:
 - `LEMONN_SECRET_KEY` (32-byte Ed25519 private seed, hex-encoded — **shared only once**, store securely)
 - Validity: 1 year
 
-> **Eligibility endpoint not yet provided.** While `LEMONN_ELIGIBILITY_URL` is empty, `checkEligibility` returns `true` with a server log warning so the rest of the flow can be tested. The expected response field (`eligible` or `is_eligible`) is a best-effort guess; confirm with Lemonn and update `src/lib/lemonn.ts::checkEligibility` once they share the contract.
+Single API call after Lemonn redirects the user back:
+
+```
+GET https://cs-prod.lemonn.co.in/api-trading/api/v1/fetch-user-details
+Headers:
+  x-api-key:        <LEMONN_API_KEY>
+  x-request-token:  <UUID from the callback URL>
+  x-signature:      Ed25519(request_token + api_key) with LEMONN_SECRET_KEY
+  x-request-id:     <fresh UUID for tracing, generated per request>
+
+Response (200 OK):
+{
+  "status": "success",
+  "msg": "User details fetched successfully",
+  "data": {
+    "is_dra_matched": false,
+    "kyc_status": "COMPLETED"
+    // additional fields may be added by Lemonn over time
+  }
+}
+```
+
+> **Eligibility rules are not yet defined.** `isEligible()` in `src/lib/lemonn.ts` currently returns `true` for every successful fetch. Wire the real product rules (e.g., require `kyc_status === "COMPLETED"`, block when `is_dra_matched === true`, etc.) when the rules arrive.
 
 ## Telegram — channel onboarding
 
@@ -85,7 +107,7 @@ To go live on a real channel, the influencer (channel owner) must:
 
 The bot itself is created via [@BotFather](https://t.me/BotFather). We hold the token; the influencer never sees it. Suggested naming convention: display name `<Influencer> Access`, username `@<influencer>_access_bot` (e.g., `@boomingbulls_access_bot`).
 
-Each successful eligible login generates a **fresh** invite link with `member_limit: 1` and a 24-hour `expire_date`. Even if a user shares the link, only the first person to click it joins — the link is dead after that. Telegram's admin UI displays each generated link labeled `lemonn:<client_id>` for auditing.
+Each successful eligible login generates a **fresh** invite link with `member_limit: 1` and a 24-hour `expire_date`. Even if a user shares the link, only the first person to click it joins — the link is dead after that. Telegram's admin UI displays each generated link labeled `lemonn:<id>` for auditing (`<id>` resolves to `client_id` when Lemonn provides it, otherwise to a short prefix of the request_token).
 
 ## Environment variables
 
@@ -99,9 +121,7 @@ LEMONN_SECRET_KEY=
 
 # ─── Lemonn endpoints ───────────────────────────────────────────────────────
 LEMONN_LOGIN_URL=https://lemonn-pro.lemonn.co.in/login
-LEMONN_SESSION_TOKEN_URL=https://cs-prod.lemonn.co.in/api-trading/api/v1/generate_session_token
-# Leave empty until Lemonn provides the URL. While empty, all users default to eligible (with a log warning).
-LEMONN_ELIGIBILITY_URL=
+LEMONN_USER_DETAILS_URL=https://cs-prod.lemonn.co.in/api-trading/api/v1/fetch-user-details
 
 # ─── Telegram (real values once bot is admin on the channel) ────────────────
 # From @BotFather after /newbot. Looks like 123456789:ABC…
@@ -133,12 +153,12 @@ src/
 │   ├── layout.tsx              ← root layout, branding-aware metadata
 │   ├── page.tsx                ← /  landing page with Login button
 │   ├── callback/route.ts       ← /callback  Lemonn handshake + Telegram link + cookie
-│   ├── welcome/route is a page ← /welcome   reads cookie, renders Join button
+│   ├── welcome/page.tsx        ← /welcome   reads cookie, renders Join button
 │   ├── join/route.ts           ← /join      verifies cookie, 307s to t.me, clears cookie
 │   └── non-eligible/page.tsx   ← /non-eligible
 ├── lib/
 │   ├── env.ts                  ← zod-validated env (fail-fast on boot)
-│   ├── lemonn.ts               ← Ed25519 signing, session-token exchange, eligibility
+│   ├── lemonn.ts               ← Ed25519 signing, fetch-user-details, eligibility rules
 │   ├── telegram.ts             ← createChatInviteLink wrapper (member_limit:1)
 │   ├── invite-token.ts         ← HMAC sign/verify of the cookie payload
 │   ├── branding.ts             ← typed NEXT_PUBLIC_* reader
@@ -158,7 +178,7 @@ scripts/
 
 | File | Purpose | Status |
 |---|---|---|
-| `src/lib/lemonn.ts` | OAuth flow, Ed25519 signing, session exchange, eligibility check | **Live**, except eligibility URL is still TBD (see above). |
+| `src/lib/lemonn.ts` | Ed25519 signing, fetch-user-details, eligibility decision | **Live**. `isEligible()` is a stub that returns `true` for every successful fetch — wire real rules when product defines them. |
 | `src/lib/telegram.ts` | `issueInviteLink(user)` — calls `createChatInviteLink` with `member_limit: 1` | **Live** when `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHANNEL_ID` are set; falls back to `TELEGRAM_PLACEHOLDER_URL` otherwise. |
 | `src/lib/invite-token.ts` | HMAC-SHA256 sign/verify for the cookie | **Live**. |
 
@@ -177,7 +197,7 @@ scripts/
 Hitting `/callback` with no params (or a stale / forged request_token) returns the not-eligible branch:
 
 - `http://localhost:3000/callback` → redirects to `/non-eligible` (`reason=missing_request_token`)
-- `http://localhost:3000/callback?request_token=fake` → redirects to `/non-eligible` (`reason=session_exchange_failed`, logged server-side as `Invalid signature` from Lemonn)
+- `http://localhost:3000/callback?request_token=fake` → redirects to `/non-eligible` (`reason=fetch_user_details_failed`, logged server-side)
 
 To test the eligible branch you need real Lemonn credentials and to complete a real login on `lemonn-pro.lemonn.co.in`.
 
@@ -189,18 +209,16 @@ The `scripts/` directory contains three diagnostic helpers (instructions inside 
 
 ## Deployment
 
-- **Host**: Vercel (Pro plan required for Vercel native Static IPs).
-- **Static IP** (Lemonn requires this for allowlisting your outbound traffic):
-  - **Option A — Vercel native Static IPs**: $100/mo per project + Private Data Transfer. Toggle in Project Settings → Networking.
-  - **Option B — QuotaGuard proxy**: ~$19/mo, dedicated IP, set `QUOTAGUARD_STATIC_URL` env var and route Lemonn `fetch` calls through it.
-- **Runtime**: all Lemonn / Telegram / crypto calls live in `src/lib/`, invoked only from route handlers pinned to `runtime = "nodejs"`. Middleware/edge bypasses static IPs and lacks Node's `crypto` primitives we use, so do **not** move these calls there.
+- **Host**: Vercel (Hobby plan is sufficient — no static IP required).
+- **Runtime**: all Lemonn / Telegram / crypto calls live in `src/lib/`, invoked only from route handlers pinned to `runtime = "nodejs"`. Middleware/edge bypasses Node's `crypto` primitives we use, so do **not** move these calls there.
+- **Outbound IP allowlisting is no longer required** — Lemonn's `fetch-user-details` endpoint authenticates by signature only. If that changes in the future, see "static IP options" in commit history for the QuotaGuard / Vercel native comparison we evaluated.
 
 ## Security notes
 
 - **Server secrets** (`LEMONN_SECRET_KEY`, `INVITE_TOKEN_SECRET`, `TELEGRAM_BOT_TOKEN`) must be marked "Sensitive" in Vercel project settings.
 - **No `NEXT_PUBLIC_` prefix on secrets** — those values are inlined into the client bundle at build time.
 - **Bot token scrubbing**: any error thrown from `src/lib/telegram.ts` runs through `scrubToken()` so the token never appears in stack traces sent to log shippers.
-- **Lemonn error sanitization**: `src/lib/lemonn.ts` only logs `{ status, msg, error_code }` from Lemonn responses; the `data` field (which contains `access_token`) is never logged.
+- **Lemonn error sanitization**: `src/lib/lemonn.ts` only logs `{ status, msg, error_code }` from Lemonn error responses. The `data` field is logged on success but never on failure.
 - **Cookie hardening**: `lemonn_invite_token` is `httpOnly` (no JS access), `sameSite=Lax`, `secure` in production, and HMAC-signed.
 
 ## Known open items
@@ -213,14 +231,14 @@ The `scripts/` directory contains three diagnostic helpers (instructions inside 
 | M2 | Security headers (HSTS, X-Frame-Options, Referrer-Policy, CSP) in `next.config.ts`. | `next.config.ts` |
 | M3 | `URLSearchParams.forEach` collapses duplicate keys; switch to `get(key)` per field. | `src/app/callback/route.ts` |
 | M5 | Better UX on `/callback` retry — distinguish "token already used" from "not eligible". | `src/lib/lemonn.ts` |
+| — | **Eligibility rules**: define and wire actual product rules in `isEligible()`. | `src/lib/lemonn.ts::isEligible` |
 | — | **Lifetime-cap loophole**: same Lemonn user can log in repeatedly to farm fresh invite links. Needs Vercel KV. | `src/lib/telegram.ts` |
-| — | Wire `LEMONN_ELIGIBILITY_URL` when Lemonn ships it. | `src/lib/lemonn.ts::checkEligibility` |
 | — | Real branding values (`NEXT_PUBLIC_INFLUENCER_LOGO_URL`, `..._BRAND_PRIMARY_COLOR`) from the influencer. | env / Vercel |
 
 ## Adding a new influencer
 
 1. Fork this repo (or create a separate Vercel project pointing at the same repo).
 2. Set this new influencer's `LEMONN_API_KEY`, `LEMONN_SECRET_KEY`, `INVITE_TOKEN_SECRET` (fresh `openssl rand -hex 32`), `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHANNEL_ID`, and branding envs.
-3. Register the new deployment's domain + static IP with Lemonn (offline).
+3. Register the new deployment's domain with Lemonn (offline).
 4. Add the new bot as admin on the influencer's Telegram channel ("Invite Users via Link" permission).
 5. Deploy.

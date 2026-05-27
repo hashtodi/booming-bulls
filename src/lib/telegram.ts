@@ -20,6 +20,11 @@ type CreateChatInviteLinkResponse = {
 };
 
 const INVITE_LINK_TTL_SECONDS = 24 * 60 * 60;
+// One automatic retry with a short backoff catches the most common transient
+// network blips (ETIMEDOUT, ECONNRESET, brief DNS hiccup) without dragging
+// total latency to multi-second levels.
+const RETRY_ATTEMPTS = 2;
+const RETRY_BACKOFF_MS = 600;
 
 // Replace the bot token with a placeholder anywhere it might appear in a string.
 // Used to scrub errors before logging or re-throwing, since the token is part of
@@ -27,6 +32,10 @@ const INVITE_LINK_TTL_SECONDS = 24 * 60 * 60;
 function scrubToken(message: string, token: string): string {
   if (!token) return message;
   return message.split(token).join("<bot_token>");
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
 }
 
 export async function issueInviteLink(user: LemonnUser): Promise<InviteLink> {
@@ -45,29 +54,53 @@ export async function issueInviteLink(user: LemonnUser): Promise<InviteLink> {
   const url = `https://api.telegram.org/bot${token}/createChatInviteLink`;
   const expireDate = Math.floor(Date.now() / 1000) + INVITE_LINK_TTL_SECONDS;
 
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: chatId,
-        member_limit: 1,
-        expire_date: expireDate,
-        // Use client_id (e.g. "CS31258138") for audit visibility — Lemonn's
-        // user_id field has been observed coming back as 0, while client_id is
-        // the stable per-user identifier.
-        name: `lemonn:${user.client_id}`,
-      }),
-      cache: "no-store",
-    });
-  } catch (err) {
-    // fetch may throw on network errors and the message can include the full
-    // URL — bot token and all. Scrub before re-throwing so callers (and any
-    // log shipper) never see the secret.
-    const raw = err instanceof Error ? err.message : String(err);
+  const requestBody = JSON.stringify({
+    chat_id: chatId,
+    member_limit: 1,
+    expire_date: expireDate,
+    // user.id resolves to client_id when Lemonn returns it, otherwise to a
+    // request_token prefix — handled inside lib/lemonn.ts::pickUserId.
+    name: `lemonn:${user.id}`,
+  });
+
+  let res: Response | undefined;
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= RETRY_ATTEMPTS; attempt++) {
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: requestBody,
+        cache: "no-store",
+      });
+      lastErr = undefined;
+      break;
+    } catch (err) {
+      lastErr = err;
+      const raw = err instanceof Error ? err.message : String(err);
+      const cause =
+        err instanceof Error && err.cause
+          ? ` (cause: ${err.cause instanceof Error ? err.cause.message : String(err.cause)})`
+          : "";
+      console.warn(
+        `[telegram] createChatInviteLink network error on attempt ${attempt}/${RETRY_ATTEMPTS}: ${scrubToken(raw + cause, token)}`,
+      );
+      if (attempt < RETRY_ATTEMPTS) {
+        await sleep(RETRY_BACKOFF_MS);
+      }
+    }
+  }
+
+  if (!res) {
+    // All attempts failed with a network error. Surface the last cause with
+    // the bot token scrubbed out before re-throwing.
+    const raw = lastErr instanceof Error ? lastErr.message : String(lastErr);
+    const cause =
+      lastErr instanceof Error && lastErr.cause
+        ? ` (cause: ${lastErr.cause instanceof Error ? lastErr.cause.message : String(lastErr.cause)})`
+        : "";
     throw new Error(
-      `Telegram createChatInviteLink network error: ${scrubToken(raw, token)}`,
+      `Telegram createChatInviteLink network error after ${RETRY_ATTEMPTS} attempts: ${scrubToken(raw + cause, token)}`,
     );
   }
 
@@ -81,8 +114,7 @@ export async function issueInviteLink(user: LemonnUser): Promise<InviteLink> {
   }
 
   console.log("[telegram] invite link issued:", {
-    lemonn_client_id: user.client_id,
-    lemonn_user_id: user.id,
+    lemonn_id: user.id,
     name: body.result.name,
     expires_at: new Date(expireDate * 1000).toISOString(),
   });
