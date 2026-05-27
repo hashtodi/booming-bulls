@@ -36,7 +36,10 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       style={{ ["--brand-primary" as string]: branding.primaryColor }}
     >
-      <body className="bg-stage min-h-dvh flex flex-col text-foreground">
+      <body
+        className="bg-stage min-h-dvh flex flex-col text-foreground"
+        suppressHydrationWarning
+      >
         {children}
       </body>
     </html>
