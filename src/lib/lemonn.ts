@@ -93,29 +93,6 @@ async function fetchUserDetails(
   // from env so we can update it once Lemonn tells us the official one.
   const requestId = env.LEMONN_REQUEST_ID;
 
-  // Verbose debug — print the exact request we're sending plus a copy-pasteable
-  // curl command. Helps tell "our bug" from "Lemonn bug" when 401/4xx happens.
-  console.log("[lemonn] fetch-user-details request:", {
-    url: env.LEMONN_USER_DETAILS_URL,
-    method: "GET",
-    headers: {
-      "x-api-key": env.LEMONN_API_KEY,
-      "x-request-token": requestToken,
-      "x-signature": signature,
-      "x-request-id": requestId,
-    },
-  });
-  console.log(
-    "[lemonn] curl equivalent:\n" +
-      [
-        `curl -i --location '${env.LEMONN_USER_DETAILS_URL}' \\`,
-        `  --header 'x-api-key: ${env.LEMONN_API_KEY}' \\`,
-        `  --header 'x-request-token: ${requestToken}' \\`,
-        `  --header 'x-signature: ${signature}' \\`,
-        `  --header 'x-request-id: ${requestId}'`,
-      ].join("\n"),
-  );
-
   const res = await fetch(env.LEMONN_USER_DETAILS_URL, {
     method: "GET",
     headers: {
@@ -151,15 +128,6 @@ async function fetchUserDetails(
       `Lemonn fetch-user-details returned non-success: ${JSON.stringify(safeErrorBody(body))}`,
     );
   }
-
-  console.log(
-    "[lemonn] fetch-user-details response:",
-    JSON.stringify(
-      { status: body.status, msg: body.msg, data: body.data },
-      null,
-      2,
-    ),
-  );
 
   return body.data;
 }
@@ -222,7 +190,11 @@ export async function verifyLemonnCallback(
     details,
   };
 
-  return decideOutcome(user);
+  const outcome = decideOutcome(user);
+  // Slim ops log: which user got which outcome. No PII beyond the audit id
+  // that already lives in the Telegram admin panel.
+  console.log("[lemonn] decision:", { id: user.id, kind: outcome.kind });
+  return outcome;
 }
 
 // Prefer the human-readable `name` Lemonn returns (e.g. "HARSH TODI"). Falls
