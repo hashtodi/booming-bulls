@@ -2,6 +2,10 @@ import "server-only";
 import crypto from "node:crypto";
 import { env } from "./env";
 
+// External destination for users whose KYC isn't done. Lives here (not in env)
+// because it's a Lemonn-owned host, not an app config knob.
+export const KYC_REDIRECT_URL = "https://kyc.lemonn.co.in";
+
 // ASN.1 DER prefix for an Ed25519 PKCS#8 private key with a 32-byte raw seed.
 const ED25519_PKCS8_PREFIX = Buffer.from(
   "302e020100300506032b657004220420",
@@ -167,9 +171,8 @@ export function decideOutcome(
 }
 
 export async function verifyLemonnCallback(
-  searchParams: Record<string, string | string[] | undefined>,
+  requestToken: string | undefined,
 ): Promise<VerifyOutcome> {
-  const requestToken = first(searchParams.request_token);
   if (!requestToken) {
     return { kind: "transient_error", reason: "missing_request_token" };
   }
@@ -211,6 +214,3 @@ function pickUserId(details: LemonnUserDetails, requestToken: string): string {
   return `rt:${requestToken.split("-")[0]}`;
 }
 
-function first(v: string | string[] | undefined): string | undefined {
-  return Array.isArray(v) ? v[0] : v;
-}

@@ -1,28 +1,52 @@
 "use client";
 
+import { useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 export function JoinChannelButton() {
+  // Synchronous guard — useState is async and would let a fast second click
+  // through before the disabled re-render. A ref is set/read synchronously
+  // so the second submit is rejected immediately.
+  const submittedRef = useRef(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    if (submittedRef.current) {
+      e.preventDefault();
+      return;
+    }
+    submittedRef.current = true;
+    setSubmitting(true);
+  }
+
   return (
-    <a
-      href="/join"
-      onContextMenu={(e) => e.preventDefault()}
-      onDragStart={(e) => e.preventDefault()}
-      rel="nofollow noreferrer"
-      className={cn(
-        "group/cta relative inline-flex h-14 w-full select-none items-center justify-center gap-3",
-        "rounded-2xl px-6 text-base font-semibold tracking-tight text-white",
-        "bg-[oklch(0.68_0.14_245)]",
-        "shadow-[0_8px_24px_-12px_oklch(0.68_0.14_245_/_0.5)]",
-        "transition-colors duration-150 ease-out",
-        "hover:bg-[oklch(0.72_0.14_245)]",
-        "active:translate-y-px active:bg-[oklch(0.64_0.14_245)]",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-      )}
+    <form
+      action="/join"
+      method="POST"
+      onSubmit={handleSubmit}
+      className="w-full"
     >
-      <PaperPlaneIcon />
-      <span>Join Telegram Channel</span>
-    </a>
+      <button
+        type="submit"
+        disabled={submitting}
+        className={cn(
+          "group/cta relative inline-flex h-14 w-full select-none items-center justify-center gap-3",
+          "rounded-2xl px-6 text-base font-semibold tracking-tight text-white",
+          "bg-[oklch(0.68_0.14_245)]",
+          "shadow-[0_8px_24px_-12px_oklch(0.68_0.14_245_/_0.5)]",
+          "transition-colors duration-150 ease-out",
+          "hover:bg-[oklch(0.72_0.14_245)]",
+          "active:translate-y-px active:bg-[oklch(0.64_0.14_245)]",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+          "disabled:opacity-75 disabled:cursor-wait",
+        )}
+      >
+        <PaperPlaneIcon />
+        <span>
+          {submitting ? "Opening Telegram…" : "Join Telegram Channel"}
+        </span>
+      </button>
+    </form>
   );
 }
 

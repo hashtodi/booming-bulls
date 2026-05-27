@@ -55,15 +55,6 @@ export default function LandingPage() {
         <div className="flex w-full flex-col items-center gap-3">
           <LoginButton />
         </div>
-
-        {/* Members footer */}
-        {/* <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
-          <AvatarStack />
-          <span>
-            <span className="font-medium text-foreground">1,200+</span>{" "}
-            verified members inside
-          </span>
-        </div> */}
       </div>
     </main>
   );
@@ -93,22 +84,3 @@ function FeatureRow({
   );
 }
 
-function AvatarStack() {
-  // Decorative-only — three soft colored discs. No real user data.
-  const tones = [
-    "from-blue-400/60 to-blue-600/60",
-    "from-emerald-400/60 to-emerald-600/60",
-    "from-amber-400/60 to-amber-600/60",
-  ];
-  return (
-    <div className="flex -space-x-2">
-      {tones.map((tone, i) => (
-        <span
-          key={i}
-          aria-hidden
-          className={`size-6 rounded-full bg-gradient-to-br ${tone} ring-2 ring-background`}
-        />
-      ))}
-    </div>
-  );
-}

@@ -53,12 +53,17 @@ Visit `http://localhost:3000`.
     ▼
 [ /welcome ]      (eligible users only — cookie required)
     │   Reads cookie. If missing or invalid → /
-    │   Renders only a "Join Channel" button. No URL visible anywhere.
-    ▼ user clicks
-[ /join ]
+    │   Renders only a "Join Channel" button (HTML form posting to /join).
+    │   No URL visible anywhere.
+    ▼ user clicks (form submit, POST)
+[ POST /join ]
     │   Reads cookie → verifyInviteToken → extracts t.me URL
     │   Clears cookie (one-shot)
-    │   307 → t.me/+xxxxx
+    │   303 → t.me/+xxxxx
+    │
+    │   (Direct GET to /join — URL bar, crawler, prefetch — 303s to /
+    │    without touching the cookie. POST-only avoids browsers
+    │    speculatively burning the cookie before a real click.)
     ▼
 [ Telegram app opens → user joins channel ]
 ```
@@ -86,7 +91,8 @@ fetch-user-details ──► is_dra_matched ──┬─ false ─────�
 | `nse_fno_status !== "TRADE_READY"` OR `bse_fno_status !== "TRADE_READY"` | `/not-trade-ready` |
 | `fno_order_executed !== true` | `/no-fno-trade` |
 | All pass | `/welcome` (invite-link cookie set) |
-| Lemonn API errored / `request_token` missing | `/error-page` |
+| `request_token` missing (direct `/callback` hit) | `/` |
+| Lemonn API errored | `/error-page` |
 | Telegram `createChatInviteLink` errored after retries | `/error-page` |
 
 ## Lemonn — partner onboarding
@@ -176,7 +182,6 @@ INVITE_TOKEN_SECRET=
 NEXT_PUBLIC_INFLUENCER_NAME=Booming Bulls
 NEXT_PUBLIC_INFLUENCER_TAGLINE=Join my premium Telegram channel
 NEXT_PUBLIC_INFLUENCER_LOGO_URL=
-NEXT_PUBLIC_BRAND_PRIMARY_COLOR=#111111
 
 # ─── Optional: dev test mode (delete src/app/test/ to remove entirely) ──────
 # When "true", enables the /test page and /test/run/<kind> endpoints to mock
@@ -195,7 +200,7 @@ src/
 │   ├── page.tsx                ← /  landing page with Login button
 │   ├── callback/route.ts       ← /callback  Lemonn handshake + dispatch
 │   ├── welcome/page.tsx        ← /welcome   reads cookie, renders Join button
-│   ├── join/route.ts           ← /join      verifies cookie, 307s to t.me, clears cookie
+│   ├── join/route.ts           ← /join      POST: verifies cookie, 303s to t.me, clears cookie. GET: 303 to / (no cookie touch).
 │   ├── not-associated/         ← /not-associated   is_dra_matched=false
 │   ├── not-trade-ready/        ← /not-trade-ready  FNO status check
 │   ├── no-fno-trade/           ← /no-fno-trade     no FNO trade executed
@@ -210,7 +215,7 @@ src/
 │   └── utils.ts                ← shadcn cn() helper
 ├── components/
 │   ├── login-button.tsx        ← builds Lemonn login URL with api_key
-│   ├── join-channel-button.tsx ← client component, links to /join, right-click disabled
+│   ├── join-channel-button.tsx ← client component, HTML form posting to /join, synchronous double-submit guard
 │   └── ui/{button,card}.tsx    ← shadcn / Base UI
 └── ...
 scripts/
@@ -285,6 +290,8 @@ The `scripts/` directory has three diagnostic helpers (instructions inside each 
 - The HMAC signing key for invite tokens is derived from `INVITE_TOKEN_SECRET` (not `LEMONN_SECRET_KEY`) — Lemonn rotations don't invalidate active sessions.
 - Bot token and Lemonn error bodies are scrubbed before logging.
 - Invite-token cookie is `httpOnly`, `secure` in production, `sameSite=Lax`, HMAC-signed, and cleared by `/join` after redirect.
+- `/join` is **POST-only**. Browsers do not speculatively prefetch POST requests, so the single-shot cookie can only be consumed by a deliberate form submission. The GET handler 303s to `/` without touching the cookie. This closes a real-world bug where Chrome's omnibox prefetcher (and `link rel=prefetch` / Next.js Link prefetch) was firing GET `/join` ahead of the real click and burning the cookie.
+- The Join button has a synchronous `useRef` double-submit guard so fast double-clicks can't fire two POSTs (which would leave the user stranded on `/` with the invite link orphaned).
 - Telegram invite links are `member_limit: 1` + 24h `expire_date` — single-use even if leaked.
 
 ## Adding a new influencer

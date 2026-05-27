@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyLemonnCallback } from "@/lib/lemonn";
+import { verifyLemonnCallback, KYC_REDIRECT_URL } from "@/lib/lemonn";
 import { issueInviteLink } from "@/lib/telegram";
 import {
   signInviteToken,
@@ -10,20 +10,20 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// External destination for users whose KYC isn't done. Hardcoded for now;
-// extract to env if Lemonn ever changes this host.
-const KYC_REDIRECT_URL = "https://kyc.lemonn.co.in";
-
 export async function GET(req: NextRequest) {
-  const params: Record<string, string> = {};
-  req.nextUrl.searchParams.forEach((value, key) => {
-    params[key] = value;
-  });
-
-  const result = await verifyLemonnCallback(params);
+  const requestToken =
+    req.nextUrl.searchParams.get("request_token") ?? undefined;
+  const result = await verifyLemonnCallback(requestToken);
 
   switch (result.kind) {
     case "transient_error":
+      // No token at all = user hit /callback directly (bookmark, crawler,
+      // back-button after the original params were stripped). Send them to
+      // the landing page so they can start a real login, instead of the
+      // misleading "Something went wrong" error page.
+      if (result.reason === "missing_request_token") {
+        return NextResponse.redirect(new URL("/", req.url));
+      }
       return NextResponse.redirect(new URL("/error-page", req.url));
 
     case "not_associated":

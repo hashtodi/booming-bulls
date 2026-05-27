@@ -18,6 +18,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 import {
   decideOutcome,
+  KYC_REDIRECT_URL,
   type LemonnUserDetails,
   type LemonnUser,
 } from "@/lib/lemonn";
@@ -27,8 +28,6 @@ import {
   INVITE_COOKIE_NAME,
   INVITE_COOKIE_TTL_SECONDS,
 } from "@/lib/invite-token";
-
-const KYC_REDIRECT_URL = "https://kyc.lemonn.co.in";
 
 export function isTestModeEnabled(): boolean {
   return process.env.ENABLE_TEST_MODE === "true";

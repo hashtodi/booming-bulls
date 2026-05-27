@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { branding } from "@/lib/branding";
 
 export default function NoFnoTradePage() {
@@ -20,12 +21,12 @@ export default function NoFnoTradePage() {
         >
           Trade on Lemonn
         </a>
-        <a
+        <Link
           href="/"
           className="text-sm font-medium text-primary underline-offset-4 hover:underline"
         >
           Back to home
-        </a>
+        </Link>
       </div>
     </main>
   );

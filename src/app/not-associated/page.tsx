@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { branding } from "@/lib/branding";
 
 export default function NotAssociatedPage() {
@@ -12,12 +13,12 @@ export default function NotAssociatedPage() {
           this premium channel, you need to be onboarded through{" "}
           {branding.name}.
         </p>
-        <a
+        <Link
           href="/"
           className="text-sm font-medium text-primary underline-offset-4 hover:underline"
         >
           Back to home
-        </a>
+        </Link>
       </div>
     </main>
   );

@@ -19,11 +19,6 @@ export function LoginButton() {
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[oklch(0.85_0.18_95)] focus-visible:ring-offset-2 focus-visible:ring-offset-background",
       )}
     >
-      {/* Lemonn-yellow brand dot */}
-      {/* <span className="relative flex size-2.5" aria-hidden>
-        <span className="absolute inline-flex size-full animate-ping rounded-full bg-[oklch(0.85_0.18_95)] opacity-60" />
-        <span className="relative inline-flex size-2.5 rounded-full bg-[oklch(0.82_0.19_95)] shadow-[0_0_8px_oklch(0.85_0.18_95_/_0.6)]" />
-      </span> */}
       <span>Login with Lemonn</span>
       <ArrowRight
         className="size-[18px] text-neutral-700 transition-transform duration-200 group-hover/cta:translate-x-0.5"
