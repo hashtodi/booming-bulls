@@ -133,6 +133,23 @@ async function fetchUserDetails(
     );
   }
 
+  // Dev visibility: print the decision-relevant fields plus a `name_present`
+  // boolean (without the actual name) so the log isn't full PII but you can
+  // still confirm Lemonn returned what you expected. Add or remove fields
+  // here as Lemonn's response shape evolves.
+  const d = body.data;
+  console.log("[lemonn] fetch-user-details data:", {
+    is_dra_matched: d.is_dra_matched,
+    kyc_status: d.kyc_status,
+    nse_cash_status: d.nse_cash_status,
+    bse_cash_status: d.bse_cash_status,
+    nse_fno_status: d.nse_fno_status,
+    bse_fno_status: d.bse_fno_status,
+    fno_order_executed: d.fno_order_executed,
+    fno_order_executed_at: d.fno_order_executed_at,
+    name_present: typeof d.name === "string" && d.name.length > 0,
+  });
+
   return body.data;
 }
 
