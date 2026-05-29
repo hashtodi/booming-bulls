@@ -5,8 +5,8 @@ import { SignupButton } from "@/components/signup-button";
 
 export default function LandingPage() {
   return (
-    <main className="flex flex-1 items-center justify-center px-5 py-10 pb-[max(env(safe-area-inset-bottom),2.5rem)] sm:py-16">
-      <div className="flex w-full max-w-md flex-col items-center gap-7 sm:gap-8">
+    <main className="flex flex-1 items-center justify-center px-5 py-8 pb-[max(env(safe-area-inset-bottom),1.5rem)] sm:py-10">
+      <div className="flex w-full max-w-md flex-col items-center gap-5 sm:gap-6">
         <span className="eyebrow text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
           {branding.name}
         </span>
@@ -21,8 +21,8 @@ export default function LandingPage() {
         </div>
 
         {/* Headline */}
-        <div className="flex flex-col items-center gap-4 text-center">
-          <h1 className="text-balance text-5xl font-semibold leading-[1.05] tracking-tight sm:text-6xl">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <h1 className="text-balance text-4xl font-semibold leading-[1.05] tracking-tight sm:text-5xl">
             Get premium
             <br />
             access.
@@ -53,7 +53,7 @@ export default function LandingPage() {
         </ul>
 
         {/* CTA */}
-        <div className="flex w-full flex-col items-center gap-5">
+        <div className="flex w-full flex-col items-center gap-4">
           <LoginButton />
           <SignupButton />
         </div>
@@ -72,8 +72,8 @@ function FeatureRow({
   description: string;
 }) {
   return (
-    <li className="flex items-start gap-3 px-4 py-4 sm:px-5">
-      <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground/80 ring-1 ring-border">
+    <li className="flex items-start gap-3 px-4 py-3 sm:px-5">
+      <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground/80 ring-1 ring-border">
         {icon}
       </span>
       <div className="flex flex-col gap-0.5">

@@ -7,7 +7,7 @@ export function LoginButton() {
     <a
       href={href}
       className={cn(
-        "group/cta relative inline-flex h-14 w-full select-none items-center justify-center gap-3",
+        "group/cta relative inline-flex h-12 w-full select-none items-center justify-center gap-3",
         "rounded-2xl px-6 text-base font-semibold tracking-tight text-neutral-900",
         "bg-gradient-to-b from-white to-[oklch(0.93_0.005_95)]",
         "shadow-[inset_0_1px_0_oklch(1_0_0_/_0.9),inset_0_-1px_0_oklch(0_0_0_/_0.06)]",

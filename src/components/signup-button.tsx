@@ -14,7 +14,7 @@ export function SignupButton() {
     <a
       href={href}
       className={cn(
-        "group/signup relative inline-flex h-14 w-full select-none items-center justify-center gap-2",
+        "group/signup relative inline-flex h-12 w-full select-none items-center justify-center gap-2",
         "rounded-2xl px-6 text-base font-medium tracking-tight",
         "border border-white bg-card/60 backdrop-blur",
         "transition-colors duration-150 ease-out",
