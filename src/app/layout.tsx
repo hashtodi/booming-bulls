@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: `${branding.name} — Premium Telegram Channel`,
+  title: `${branding.name} - Premium Telegram Channel`,
   description: branding.tagline,
 };
 

@@ -15,6 +15,11 @@ const serverEnvSchema = z.object({
   // eligibility) flow.
   LEMONN_USER_DETAILS_URL: z.url(),
 
+  // Lemonn account-creation / affiliate onboarding link for users who don't
+  // have an account yet. Drives the "Create an account" CTA on the landing
+  // page. Optional — leave empty/unset to hide that button.
+  LEMONN_SIGNUP_URL: z.url().or(z.literal("")).optional(),
+
   // Lemonn appears to allowlist x-request-id values per partner. The value
   // `canary-app-123` from their sample is currently the only one that gets
   // past auth on our account — any other value (UUID, plain alphanumeric, or

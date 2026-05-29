@@ -1,6 +1,7 @@
 import { Bell, Radio, ShieldCheck } from "lucide-react";
 import { branding } from "@/lib/branding";
 import { LoginButton } from "@/components/login-button";
+import { SignupButton } from "@/components/signup-button";
 
 export default function LandingPage() {
   return (
@@ -22,9 +23,9 @@ export default function LandingPage() {
         {/* Headline */}
         <div className="flex flex-col items-center gap-4 text-center">
           <h1 className="text-balance text-5xl font-semibold leading-[1.05] tracking-tight sm:text-6xl">
-            The signal
+            Get premium
             <br />
-            in the noise.
+            access.
           </h1>
           <p className="max-w-sm text-pretty text-sm leading-relaxed text-muted-foreground sm:text-base">
             Join our premium Telegram channel. Real-time calls, conviction-only setups, and
@@ -52,8 +53,9 @@ export default function LandingPage() {
         </ul>
 
         {/* CTA */}
-        <div className="flex w-full flex-col items-center gap-3">
+        <div className="flex w-full flex-col items-center gap-5">
           <LoginButton />
+          <SignupButton />
         </div>
       </div>
     </main>
