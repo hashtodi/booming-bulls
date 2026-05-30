@@ -2,7 +2,7 @@
 
 Landing page → Lemonn OAuth (OTP + PIN) → user-details check → eligibility decision tree → single-use Telegram invite link (or a dedicated ineligibility page). The invite link is delivered to the user via an httpOnly cookie so it never appears in the page DOM, URL bar, or browser history — only the final `t.me/+...` redirect is visible to the user when they click "Join Channel".
 
-This app is single-tenant — one deployment per influencer. Currently configured for **Booming Bulls**. To onboard a new influencer, clone the repo (or fork), deploy as a new Vercel project, and fill in their env values. No code changes.
+This app is single-tenant — one deployment per influencer. Currently configured for **Influencer**. To onboard a new influencer, clone the repo (or fork), deploy as a new Vercel project, and fill in their env values. No code changes.
 
 ## Tech stack
 
@@ -142,7 +142,7 @@ To go live on a real channel, the influencer (channel owner) must:
 1. **Add our bot as an admin** on their channel with **only** the "Invite Users via Link" permission. The bot needs no other permissions.
 2. **Share the channel ID** (numeric, starts with `-100`). Easiest way: forward any one message from the channel to [@JsonDumpBot](https://t.me/JsonDumpBot) — it returns the JSON containing `chat.id`.
 
-The bot itself is created via [@BotFather](https://t.me/BotFather). We hold the token; the influencer never sees it. Suggested naming convention: display name `<Influencer> Access`, username `@<influencer>_access_bot` (e.g., `@boomingbulls_access_bot`).
+The bot itself is created via [@BotFather](https://t.me/BotFather). We hold the token; the influencer never sees it. 
 
 Each successful eligible login generates a **fresh** invite link with `member_limit: 1` and a 24-hour `expire_date`. Even if a user shares the link, only the first person to click it joins — the link is dead after that. Telegram's admin UI displays each generated link labeled `lemonn:<id>` for auditing (`<id>` resolves to the user's `name` from Lemonn's response, e.g., `lemonn:HARSH TODI`, truncated to 25 chars; falls back to `rt:<request-token-prefix>` when no `name` field is returned).
 
@@ -179,9 +179,8 @@ TELEGRAM_PLACEHOLDER_URL=https://t.me/+placeholder
 INVITE_TOKEN_SECRET=
 
 # ─── Branding (safe to expose to the browser) ───────────────────────────────
-NEXT_PUBLIC_INFLUENCER_NAME=Booming Bulls
-NEXT_PUBLIC_INFLUENCER_TAGLINE=Join my premium Telegram channel
-NEXT_PUBLIC_INFLUENCER_LOGO_URL=
+NEXT_PUBLIC_INFLUENCER_NAME=
+NEXT_PUBLIC_INFLUENCER_TAGLINE=
 
 # ─── Optional: dev test mode (delete src/app/test/ to remove entirely) ──────
 # When "true", enables the /test page and /test/run/<kind> endpoints to mock

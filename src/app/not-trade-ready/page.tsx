@@ -1,28 +1,46 @@
 import Link from "next/link";
+import { Info } from "lucide-react";
 import { branding } from "@/lib/branding";
+import { primaryCtaClassName } from "@/lib/cta";
 
 export default function NotTradeReadyPage() {
   return (
     <main className="flex flex-1 items-center justify-center px-6 py-16">
       <div className="flex w-full max-w-md flex-col items-center gap-6 text-center">
+        <span className="eyebrow text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+          {branding.name}
+        </span>
         <h1 className="text-2xl font-semibold tracking-tight">
-          You&rsquo;re not trade ready yet
+          You&rsquo;re not trade ready
         </h1>
         <p className="text-base text-muted-foreground">
-          Your FNO trading isn&rsquo;t active on both NSE and BSE yet. Activate
-          FNO on your Lemonn account, then come back to join {branding.name}.
+          Your F&amp;O trading isn&rsquo;t active on your Lemonn account yet.
+          Activate F&amp;O, then come back to join {branding.name}.
         </p>
+
+        {/* Eligibility callout — the key requirement, made prominent. */}
+        <div className="flex w-full items-start gap-3 rounded-2xl border border-border bg-card/60 px-4 py-4 text-left backdrop-blur">
+          <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground/80 ring-1 ring-border">
+            <Info className="size-[18px]" aria-hidden />
+          </span>
+          <p className="text-sm leading-relaxed text-foreground/90">
+            Your VIP access will be activated only after you complete your
+            first F&amp;O trade. Accounts without a completed F&amp;O trade
+            will not be eligible for verification.
+          </p>
+        </div>
+
         <a
-          href="https://lemonn.co.in"
+          href="https://lmnn.in/welcome"
           target="_blank"
           rel="noreferrer"
-          className="inline-flex h-12 items-center justify-center rounded-full bg-primary px-6 text-base font-semibold text-primary-foreground shadow-sm hover:bg-primary/90"
+          className={primaryCtaClassName}
         >
           Go to Lemonn
         </a>
         <Link
           href="/"
-          className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+          className="text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
         >
           Back to home
         </Link>

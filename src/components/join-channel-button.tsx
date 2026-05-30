@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { cn } from "@/lib/utils";
+import { primaryCtaClassName } from "@/lib/cta";
 
 export function JoinChannelButton() {
   // Synchronous guard — useState is async and would let a fast second click
@@ -30,14 +31,8 @@ export function JoinChannelButton() {
         type="submit"
         disabled={submitting}
         className={cn(
-          "group/cta relative inline-flex h-14 w-full select-none items-center justify-center gap-3",
-          "rounded-2xl px-6 text-base font-semibold tracking-tight text-white",
-          "bg-[oklch(0.68_0.14_245)]",
-          "shadow-[0_8px_24px_-12px_oklch(0.68_0.14_245_/_0.5)]",
-          "transition-colors duration-150 ease-out",
-          "hover:bg-[oklch(0.72_0.14_245)]",
-          "active:translate-y-px active:bg-[oklch(0.64_0.14_245)]",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+          "group/cta",
+          primaryCtaClassName,
           "disabled:opacity-75 disabled:cursor-wait",
         )}
       >
