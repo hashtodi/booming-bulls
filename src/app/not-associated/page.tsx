@@ -10,12 +10,12 @@ export default function NotAssociatedPage() {
           {branding.name}
         </span>
         <h1 className="text-2xl font-semibold tracking-tight">
-          You&rsquo;re not associated with {branding.name}
+          You&rsquo;re not associated with the {branding.generic_name}
         </h1>
         <p className="text-base text-muted-foreground">
-          Your Lemonn account isn&rsquo;t linked to {branding.name}. To join
-          this premium channel, you need to be onboarded through{" "}
-          {branding.name}.
+          Your Lemonn account isn&rsquo;t linked to {branding.generic_name}. To join
+          this premium channel, you need to be onboarded through the{" "}
+          {branding.generic_name}.
         </p>
         <Link href="/" className={primaryCtaClassName}>
           Back to home

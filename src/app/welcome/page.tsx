@@ -38,8 +38,8 @@ export default async function WelcomePage() {
             You&rsquo;re in.
           </h1>
           <p className="max-w-sm text-pretty text-sm leading-relaxed text-muted-foreground sm:text-base">
-            Congratulations! You&rsquo;ve unlocked VIP access to{" "}
-            {branding.name}. Your private invite is ready below.
+            Congratulations! You&rsquo;ve unlocked access to{" "}
+            {branding.name} channel. Your private invite is ready below.
           </p>
         </div>
 

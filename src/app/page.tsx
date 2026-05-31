@@ -20,7 +20,7 @@ export default function LandingPage() {
           <h1 className="text-balance text-4xl font-semibold leading-[1.05] tracking-tight sm:text-5xl">
             {branding.name}
             <br />
-            VIP Access.
+             Access.
           </h1>
           <p className="max-w-sm text-pretty text-sm leading-relaxed text-muted-foreground sm:text-base">
             Get real-time trade alerts, high-conviction setups, market insights, and members-only updates.
