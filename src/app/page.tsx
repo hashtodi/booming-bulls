@@ -17,7 +17,7 @@ export default function LandingPage() {
 
         {/* Headline */}
         <div className="flex flex-col items-center gap-3 text-center">
-          <h1 className="text-balance text-4xl font-semibold leading-[1.05] tracking-tight sm:text-5xl">
+          <h1 className="text-balance text-3xl font-semibold leading-[1.05] tracking-tight sm:text-5xl">
             {branding.name}
             <br />
              VIP Access.

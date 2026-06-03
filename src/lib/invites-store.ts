@@ -1,39 +1,105 @@
 import "server-only";
 import { getSupabaseAdmin } from "./supabase";
 
-// Persistence for the "one VIP seat per eligible Lemonn user, per channel"
-// rule. Keyed on (channel_id, client_id) — see the migration in
-// supabase/migrations for the table + RLS setup.
+// Persistence for the shared, multi-tenant `entries` table: one row per
+// (influencer, client_id) that logs EVERY login (name + outcome + association +
+// the raw Lemonn user-details payload) and folds the invite/seat lifecycle for
+// eligible users into the same row. Rows are isolated by the `influencer`
+// tenant slug (= env INFLUENCER_SLUG). See the migration in supabase/migrations
+// for the table, RLS setup, and the claim_invite RPC.
 
-const TABLE = "channel_invites";
+const TABLE = "entries";
 
-export type InviteStatus = "issued" | "consumed";
-
-export type InviteRecord = {
-  inviteUrl: string;
-  status: InviteStatus;
-  expiresAt: string; // ISO timestamp
-};
-
-type Row = {
-  invite_url: string;
-  status: InviteStatus;
-  expires_at: string;
-};
+// The five terminal login outcomes we persist; the transient_error case never
+// reaches the store. Mirrors the `outcome` CHECK constraint on `entries`.
+export type Outcome =
+  | "eligible"
+  | "not_associated"
+  | "kyc_pending"
+  | "not_trade_ready"
+  | "no_fno_trade";
 
 export type ClaimAction = "mint" | "serve" | "consumed" | "wait";
 export type ClaimResult = { action: ClaimAction; inviteUrl: string | null };
 
-// Atomically resolve what to do for this user+channel, fixing the concurrency
-// double-mint race (see the claim_invite migration). One concurrent caller gets
-// 'mint' (and must then call saveIssued with the new link); others get 'serve'
+// The `entries` timestamp columns are naive `timestamp` holding IST wall-clock
+// (so they read as IST in the Supabase editor). created_at/updated_at and the
+// claim_invite RPC compute IST in SQL, but the writes below originate from this
+// JS client, which can't call `now() at time zone` — so we format the instant
+// as an IST wall-clock string here. India is a fixed UTC+5:30 with no DST, but
+// we go through the Intl time zone (not a hardcoded offset) so it stays correct
+// regardless of where the server runs.
+const IST_FORMAT = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Kolkata",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hourCycle: "h23",
+});
+
+function toIstNaive(date: Date): string {
+  const p: Record<string, string> = {};
+  for (const part of IST_FORMAT.formatToParts(date)) {
+    p[part.type] = part.value;
+  }
+  // PostgREST writes this verbatim into a `timestamp` (without time zone)
+  // column — no offset shifting — so it lands as IST wall-clock to match the
+  // SQL-side defaults/trigger.
+  return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}`;
+}
+
+// Log this login. Upsert that touches ONLY the identity/outcome columns, so it
+// must never clobber the invite lifecycle (invite_url / invite_state /
+// expires_at / consumed_at) or created_at: a re-login refreshes
+// name/outcome/associated/user_detail (and updated_at, via the trigger) while
+// leaving an in-flight or already-consumed seat untouched. PostgREST's upsert
+// only updates the columns present in the payload, which is exactly the
+// no-clobber behaviour we rely on. Best-effort at the call site — /callback
+// swallows errors so logging can never block the funnel.
+export async function recordLogin(
+  influencer: string,
+  clientId: string,
+  fields: {
+    name: string | null;
+    outcome: Outcome;
+    associated: boolean;
+    userDetail: Record<string, unknown> | null;
+  },
+): Promise<void> {
+  const { error } = await getSupabaseAdmin()
+    .from(TABLE)
+    .upsert(
+      {
+        influencer,
+        client_id: clientId,
+        name: fields.name,
+        outcome: fields.outcome,
+        associated: fields.associated,
+        user_detail: fields.userDetail,
+      },
+      { onConflict: "influencer,client_id" },
+    );
+
+  if (error) {
+    throw new Error(`entries recordLogin failed: ${error.message}`);
+  }
+}
+
+// Atomically resolve what to do for this user, fixing the concurrent
+// double-mint race (see the claim_invite migration). One caller gets 'mint'
+// (and must then call saveIssued with the new link); others get 'serve'
 // (existing valid link), 'consumed', or 'wait' (someone else is mid-mint).
+// Insert-on-missing: claim creates the row itself (outcome='eligible') if
+// recordLogin's best-effort write didn't land first.
 export async function claimInvite(
-  channelId: string,
+  influencer: string,
   clientId: string,
 ): Promise<ClaimResult> {
   const { data, error } = await getSupabaseAdmin().rpc("claim_invite", {
-    p_channel_id: channelId,
+    p_influencer: influencer,
     p_client_id: clientId,
   });
   if (error) {
@@ -49,75 +115,49 @@ export async function claimInvite(
   return { action: row.action, inviteUrl: row.invite_url ?? null };
 }
 
-// Fetch the existing invite row for this user+channel, or null if none.
-export async function getInvite(
-  channelId: string,
-  clientId: string,
-): Promise<InviteRecord | null> {
-  const { data, error } = await getSupabaseAdmin()
-    .from(TABLE)
-    .select("invite_url, status, expires_at")
-    .eq("channel_id", channelId)
-    .eq("client_id", clientId)
-    .maybeSingle<Row>();
-
-  if (error) {
-    throw new Error(`channel_invites lookup failed: ${error.message}`);
-  }
-  if (!data) return null;
-
-  return {
-    inviteUrl: data.invite_url,
-    status: data.status,
-    expiresAt: data.expires_at,
-  };
-}
-
-// Record (or refresh) the issued link for this user+channel. Upsert on the
-// composite PK keeps it to exactly one row even if two logins race — at worst
-// one freshly-minted link is orphaned, which is harmless (it's member_limit:1).
-// Never downgrades a 'consumed' row: callers only reach here when the user is
-// not yet consumed.
+// Record the freshly-minted link on the (already-existing, claimed-as-pending)
+// row: flip the seat to 'issued' and stamp the Telegram TTL. Runs only after a
+// 'mint', so the row is guaranteed to exist. consumed_at is reset to null
+// because this row is, by definition, a live un-consumed seat.
 export async function saveIssued(
-  channelId: string,
+  influencer: string,
   clientId: string,
   inviteUrl: string,
   expiresAt: Date,
 ): Promise<void> {
   const { error } = await getSupabaseAdmin()
     .from(TABLE)
-    .upsert(
-      {
-        channel_id: channelId,
-        client_id: clientId,
-        invite_url: inviteUrl,
-        status: "issued",
-        expires_at: expiresAt.toISOString(),
-        consumed_at: null,
-      },
-      { onConflict: "channel_id,client_id" },
-    );
+    .update({
+      invite_url: inviteUrl,
+      invite_state: "issued",
+      expires_at: toIstNaive(expiresAt),
+      consumed_at: null,
+    })
+    .eq("influencer", influencer)
+    .eq("client_id", clientId);
 
   if (error) {
-    throw new Error(`channel_invites upsert failed: ${error.message}`);
+    throw new Error(`entries saveIssued failed: ${error.message}`);
   }
 }
 
-// Mark the seat as used when the user clicks Join. Best-effort: a forwarded
-// link used directly in Telegram never hits /join, so this is for the "you're
-// already in" UX, not the core dedup guarantee (that's getInvite + the single
-// row). Idempotent.
+// Mark the seat used when the user clicks Join. Best-effort for the dedup
+// guarantee (a forwarded link used directly in Telegram never hits /join) but
+// gates the "you're already in" UX on re-login. Idempotent.
 export async function markConsumed(
-  channelId: string,
+  influencer: string,
   clientId: string,
 ): Promise<void> {
   const { error } = await getSupabaseAdmin()
     .from(TABLE)
-    .update({ status: "consumed", consumed_at: new Date().toISOString() })
-    .eq("channel_id", channelId)
+    .update({
+      invite_state: "consumed",
+      consumed_at: toIstNaive(new Date()),
+    })
+    .eq("influencer", influencer)
     .eq("client_id", clientId);
 
   if (error) {
-    throw new Error(`channel_invites markConsumed failed: ${error.message}`);
+    throw new Error(`entries markConsumed failed: ${error.message}`);
   }
 }

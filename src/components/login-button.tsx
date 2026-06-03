@@ -8,7 +8,7 @@ export function LoginButton() {
       href={href}
       className={cn(
         "group/cta relative inline-flex h-12 w-full select-none items-center justify-center gap-3",
-        "rounded-2xl px-6 text-base font-medium tracking-tight",
+        "rounded-2xl px-6 text-sm font-medium tracking-tight sm:text-base",
         "border border-white bg-card/60 backdrop-blur",
         "transition-colors duration-150 ease-out",
         "hover:bg-card",
@@ -18,7 +18,7 @@ export function LoginButton() {
     >
       <span>
         <span className="font-semibold text-foreground">Unlock VIP Access</span>
-        <span className="ml-1.5 text-muted-foreground">(Lemonn Traders only)</span>
+        <span className="ml-1.5 text-xs text-muted-foreground sm:text-sm">(Lemonn Traders only)</span>
       </span>
     </a>
   );

@@ -40,6 +40,18 @@ const serverEnvSchema = z.object({
     .string()
     .regex(/^[0-9a-fA-F]{64}$/, "Must be a 64-char hex string (32 bytes). Generate with `openssl rand -hex 32`."),
 
+  // Tenant slug identifying this influencer's deployment in the shared
+  // `entries` table (lib/invites-store.ts). One Supabase project is shared by
+  // every influencer; each row is scoped by this value. Distinct from
+  // TELEGRAM_CHANNEL_ID (the Telegram target) and NEXT_PUBLIC_INFLUENCER_NAME
+  // (the display name) — this is the DB tenant key. Lowercase slug.
+  INFLUENCER_SLUG: z
+    .string()
+    .regex(
+      /^[a-z0-9_]+$/,
+      "Must be a lowercase slug of a-z, 0-9, underscore (e.g. booming_bulls)",
+    ),
+
   // Supabase — backs the invite store that enforces one seat per Lemonn
   // client_id (see lib/invites-store.ts). Optional so the app still boots in
   // placeholder mode (Telegram unconfigured); the store throws a clear error

@@ -14,7 +14,7 @@ export function SignupButton() {
       href={href}
       className={cn(
         "group/signup relative inline-flex h-12 w-full select-none items-center justify-center gap-2",
-        "rounded-2xl px-6 text-base font-medium tracking-tight text-neutral-900",
+        "rounded-2xl px-6 text-sm font-medium tracking-tight text-neutral-900 sm:text-base",
         "bg-gradient-to-b from-white to-[oklch(0.93_0.005_95)]",
         "shadow-[inset_0_1px_0_oklch(1_0_0_/_0.9),inset_0_-1px_0_oklch(0_0_0_/_0.06)]",
         "ring-1 ring-inset ring-black/5",
@@ -25,7 +25,7 @@ export function SignupButton() {
       )}
     >
       <span>
-        <span className="font-medium text-neutral-600">New to Lemonn?</span>
+        <span className="text-xs font-medium text-neutral-600 sm:text-sm">New to Lemonn?</span>
         <span className="ml-1.5 font-semibold">Sign Up</span>
       </span>
     </a>

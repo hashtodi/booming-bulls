@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyLemonnCallback, KYC_REDIRECT_URL } from "@/lib/lemonn";
 import { issueInviteLink } from "@/lib/telegram";
-import { claimInvite, saveIssued } from "@/lib/invites-store";
+import { recordLogin, claimInvite, saveIssued } from "@/lib/invites-store";
 import { env } from "@/lib/env";
 import {
   signInviteToken,
@@ -23,6 +23,29 @@ export async function GET(req: NextRequest) {
   const requestToken =
     req.nextUrl.searchParams.get("request_token") ?? undefined;
   const result = await verifyLemonnCallback(requestToken);
+
+  // DB tenant key for the shared `entries` table. Distinct from
+  // TELEGRAM_CHANNEL_ID (the Telegram target) — see lib/invites-store.ts.
+  const influencer = env.INFLUENCER_SLUG;
+
+  // Log every login to `entries` (name + outcome + association + raw Lemonn
+  // details). Best-effort and non-blocking: a store hiccup must never deny a
+  // user the page they earned. Safe because claim_invite is insert-on-missing,
+  // so the eligible branch below still works even if this write fails. Skips
+  // transient errors (no user) and any result without a client_id.
+  if (result.kind !== "transient_error" && result.user.clientId) {
+    const details = result.user.details;
+    try {
+      await recordLogin(influencer, result.user.clientId, {
+        name: details.name ?? null,
+        outcome: result.kind,
+        associated: details.is_dra_matched === true,
+        userDetail: details,
+      });
+    } catch (err) {
+      console.error("[callback] recordLogin failed (non-blocking):", err);
+    }
+  }
 
   switch (result.kind) {
     case "transient_error":
@@ -60,6 +83,8 @@ export async function GET(req: NextRequest) {
         return NextResponse.redirect(new URL("/error-page", req.url));
       }
 
+      // channelId is the Telegram target (for the link), separate from the
+      // `influencer` DB tenant key used by the invite store / cookie.
       const channelId = env.TELEGRAM_CHANNEL_ID ?? "";
       const telegramConfigured = Boolean(env.TELEGRAM_BOT_TOKEN && channelId);
 
@@ -70,11 +95,11 @@ export async function GET(req: NextRequest) {
           // dedup — just hand back the placeholder URL.
           inviteUrl = (await issueInviteLink(result.user)).url;
         } else {
-          // One seat per (channel_id, client_id), resolved atomically so two
+          // One seat per (influencer, client_id), resolved atomically so two
           // concurrent logins can't both mint a link. Exactly one caller is
           // told to 'mint'; others 'serve' the existing link or briefly 'wait'.
           for (let attempt = 0; attempt < CLAIM_MAX_ATTEMPTS; attempt++) {
-            const claim = await claimInvite(channelId, clientId);
+            const claim = await claimInvite(influencer, clientId);
 
             if (claim.action === "consumed") {
               return NextResponse.redirect(new URL("/already-member", req.url));
@@ -85,7 +110,12 @@ export async function GET(req: NextRequest) {
             }
             if (claim.action === "mint") {
               const invite = await issueInviteLink(result.user);
-              await saveIssued(channelId, clientId, invite.url, invite.expiresAt);
+              await saveIssued(
+                influencer,
+                clientId,
+                invite.url,
+                invite.expiresAt,
+              );
               inviteUrl = invite.url;
               break;
             }
@@ -108,7 +138,7 @@ export async function GET(req: NextRequest) {
       }
 
       const token = signInviteToken(
-        { url: inviteUrl, channelId, clientId },
+        { url: inviteUrl, influencer, clientId },
         INVITE_COOKIE_TTL_SECONDS,
       );
       const response = NextResponse.redirect(new URL("/welcome", req.url));

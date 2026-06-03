@@ -2,10 +2,11 @@ import "server-only";
 import crypto from "node:crypto";
 import { env } from "./env";
 
-// v2 added channelId + clientId to the payload (for marking the invite store
-// row consumed on /join). Bumping the version invalidates any in-flight v1
-// cookies — harmless, the user just re-logs in.
-const TOKEN_VERSION = "v2";
+// v3 renamed channelId → influencer in the payload: the invite store is now
+// keyed on the influencer tenant slug (env INFLUENCER_SLUG), not the Telegram
+// channel, so /join marks the right row consumed. Bumping the version
+// invalidates any in-flight v2 cookies — harmless, the user just re-logs in.
+const TOKEN_VERSION = "v3";
 
 // Derive a per-purpose key from INVITE_TOKEN_SECRET, domain-separated by
 // "invite-token-<version>". Keeps the raw secret out of the HMAC input so we
@@ -21,7 +22,7 @@ function deriveSigningKey(): Buffer {
 
 type TokenPayload = {
   url: string;
-  channelId: string;
+  influencer: string;
   clientId: string;
   exp: number;
   v: string;
@@ -29,7 +30,7 @@ type TokenPayload = {
 
 export type InviteTokenData = {
   url: string;
-  channelId: string;
+  influencer: string;
   clientId: string;
 };
 
@@ -39,7 +40,7 @@ export function signInviteToken(
 ): string {
   const payload: TokenPayload = {
     url: data.url,
-    channelId: data.channelId,
+    influencer: data.influencer,
     clientId: data.clientId,
     exp: Math.floor(Date.now() / 1000) + ttlSeconds,
     v: TOKEN_VERSION,
@@ -55,7 +56,7 @@ export function signInviteToken(
 }
 
 export type VerifyInviteTokenResult =
-  | { ok: true; url: string; channelId: string; clientId: string }
+  | { ok: true; url: string; influencer: string; clientId: string }
   | {
       ok: false;
       reason: "malformed" | "bad_signature" | "expired" | "bad_payload";
@@ -92,7 +93,7 @@ export function verifyInviteToken(token: string): VerifyInviteTokenResult {
   if (
     payload.v !== TOKEN_VERSION ||
     typeof payload.url !== "string" ||
-    typeof payload.channelId !== "string" ||
+    typeof payload.influencer !== "string" ||
     typeof payload.clientId !== "string" ||
     typeof payload.exp !== "number"
   ) {
@@ -105,7 +106,7 @@ export function verifyInviteToken(token: string): VerifyInviteTokenResult {
   return {
     ok: true,
     url: payload.url,
-    channelId: payload.channelId,
+    influencer: payload.influencer,
     clientId: payload.clientId,
   };
 }

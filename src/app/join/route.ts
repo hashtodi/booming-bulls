@@ -32,11 +32,11 @@ export async function POST(req: NextRequest) {
   // lands on /already-member instead of getting a fresh link. Strict: if the
   // store write fails we do NOT redirect to Telegram — handing out access on an
   // unrecorded seat is exactly the gap we're closing. Send them to /error-page
-  // with the cookie intact so they can retry once the store recovers. Skipped
-  // in placeholder mode where channelId is empty.
-  if (result.channelId && result.clientId) {
+  // with the cookie intact so they can retry once the store recovers. (A valid
+  // token always carries the influencer tenant key + client_id.)
+  if (result.influencer && result.clientId) {
     try {
-      await markConsumed(result.channelId, result.clientId);
+      await markConsumed(result.influencer, result.clientId);
     } catch (err) {
       console.error("[join] markConsumed failed; refusing to redirect:", err);
       return NextResponse.redirect(new URL("/error-page", req.url), 303);
