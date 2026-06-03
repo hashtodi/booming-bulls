@@ -3,6 +3,7 @@ import {
   verifyInviteToken,
   INVITE_COOKIE_NAME,
 } from "@/lib/invite-token";
+import { markConsumed } from "@/lib/invites-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,6 +26,21 @@ export async function POST(req: NextRequest) {
     const res = NextResponse.redirect(new URL("/", req.url), 303);
     res.cookies.delete(INVITE_COOKIE_NAME);
     return res;
+  }
+
+  // Mark the seat consumed BEFORE letting the user through, so a later re-login
+  // lands on /already-member instead of getting a fresh link. Strict: if the
+  // store write fails we do NOT redirect to Telegram — handing out access on an
+  // unrecorded seat is exactly the gap we're closing. Send them to /error-page
+  // with the cookie intact so they can retry once the store recovers. Skipped
+  // in placeholder mode where channelId is empty.
+  if (result.channelId && result.clientId) {
+    try {
+      await markConsumed(result.channelId, result.clientId);
+    } catch (err) {
+      console.error("[join] markConsumed failed; refusing to redirect:", err);
+      return NextResponse.redirect(new URL("/error-page", req.url), 303);
+    }
   }
 
   // One-shot: clear the cookie so the same browser session can't replay /join.

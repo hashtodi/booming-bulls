@@ -43,10 +43,11 @@ export type LemonnUserDetails = {
 };
 
 export type LemonnUser = {
-  // A stable per-login identifier used for Telegram invite-link audit naming
-  // and our own logs. Prefers Lemonn's client_id when present, falls back to
-  // a short prefix of the request_token.
-  id: string;
+  // Stable Lemonn client_id — the single identifier used for dedup (the invite
+  // store), the Telegram invite-link label, and our logs. Optional because some
+  // responses may omit it; the /callback eligible branch guards on it before
+  // issuing an invite.
+  clientId?: string;
   details: LemonnUserDetails;
 };
 
@@ -139,6 +140,7 @@ async function fetchUserDetails(
   // here as Lemonn's response shape evolves.
   const d = body.data;
   console.log("[lemonn] fetch-user-details data:", {
+    client_id: d.client_id, // dedup key for the invite store — confirm it's present
     is_dra_matched: d.is_dra_matched,
     kyc_status: d.kyc_status,
     nse_cash_status: d.nse_cash_status,
@@ -206,28 +208,18 @@ export async function verifyLemonnCallback(
   }
 
   const user: LemonnUser = {
-    id: pickUserId(details, requestToken),
+    clientId: details.client_id,
     details,
   };
 
   const outcome = decideOutcome(user);
-  // Slim ops log: which user got which outcome. No PII beyond the audit id
-  // that already lives in the Telegram admin panel.
-  console.log("[lemonn] decision:", { id: user.id, kind: outcome.kind });
+  // Slim ops log: which user (by Lemonn client_id) got which outcome. The
+  // client_id is the same audit id that labels the Telegram invite link.
+  console.log("[lemonn] decision:", {
+    client_id: user.clientId,
+    kind: outcome.kind,
+  });
   return outcome;
 }
 
-// Prefer the human-readable `name` Lemonn returns (e.g. "HARSH TODI"). Falls
-// back to a request_token prefix when name is missing/empty so the audit
-// label is never blank.
-// Telegram caps invite-link names at 32 chars total; the "lemonn:" prefix
-// consumes 7, so the per-user portion is sliced to 25.
-function pickUserId(details: LemonnUserDetails, requestToken: string): string {
-  const name =
-    typeof details.name === "string" ? details.name.trim() : "";
-  if (name.length > 0) {
-    return name.slice(0, 25);
-  }
-  return `rt:${requestToken.split("-")[0]}`;
-}
 

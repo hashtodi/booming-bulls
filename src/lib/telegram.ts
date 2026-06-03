@@ -5,6 +5,9 @@ import type { LemonnUser } from "./lemonn";
 export type InviteLink = {
   url: string;
   source: "telegram-api" | "placeholder";
+  // When the link stops working. Persisted by the invite store so /callback
+  // knows whether a stored link can be re-served or must be re-minted.
+  expiresAt: Date;
 };
 
 type CreateChatInviteLinkResponse = {
@@ -48,7 +51,11 @@ export async function issueInviteLink(user: LemonnUser): Promise<InviteLink> {
       "[telegram] TELEGRAM_BOT_TOKEN or TELEGRAM_CHANNEL_ID is empty. " +
         "Returning placeholder invite URL. Fill both env vars to issue real links.",
     );
-    return { url: env.TELEGRAM_PLACEHOLDER_URL, source: "placeholder" };
+    return {
+      url: env.TELEGRAM_PLACEHOLDER_URL,
+      source: "placeholder",
+      expiresAt: new Date(Date.now() + INVITE_LINK_TTL_SECONDS * 1000),
+    };
   }
 
   const url = `https://api.telegram.org/bot${token}/createChatInviteLink`;
@@ -58,9 +65,12 @@ export async function issueInviteLink(user: LemonnUser): Promise<InviteLink> {
     chat_id: chatId,
     member_limit: 1,
     expire_date: expireDate,
-    // user.id resolves to client_id when Lemonn returns it, otherwise to a
-    // request_token prefix — handled inside lib/lemonn.ts::pickUserId.
-    name: `lemonn:${user.id}`,
+    // Audit label shown in Telegram's invite-links admin panel — uses the
+    // Lemonn client_id so a link maps straight back to the account. Telegram
+    // caps the name at 32 chars; "lemonn:" takes 7, so client_id is sliced to
+    // 25. clientId is always present here (the /callback eligible branch guards
+    // on it before calling this); the fallback only guards the type.
+    name: `lemonn:${(user.clientId ?? "unknown").slice(0, 25)}`,
   });
 
   let res: Response | undefined;
@@ -114,10 +124,14 @@ export async function issueInviteLink(user: LemonnUser): Promise<InviteLink> {
   }
 
   console.log("[telegram] invite link issued:", {
-    lemonn_id: user.id,
+    client_id: user.clientId,
     name: body.result.name,
     expires_at: new Date(expireDate * 1000).toISOString(),
   });
 
-  return { url: body.result.invite_link, source: "telegram-api" };
+  return {
+    url: body.result.invite_link,
+    source: "telegram-api",
+    expiresAt: new Date(expireDate * 1000),
+  };
 }

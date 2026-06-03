@@ -39,6 +39,14 @@ const serverEnvSchema = z.object({
   INVITE_TOKEN_SECRET: z
     .string()
     .regex(/^[0-9a-fA-F]{64}$/, "Must be a 64-char hex string (32 bytes). Generate with `openssl rand -hex 32`."),
+
+  // Supabase — backs the invite store that enforces one seat per Lemonn
+  // client_id (see lib/invites-store.ts). Optional so the app still boots in
+  // placeholder mode (Telegram unconfigured); the store throws a clear error
+  // if used while these are unset. SECRET_KEY is the server-only service-role
+  // / secret key (sb_secret_...) — never expose it with a NEXT_PUBLIC_ prefix.
+  SUPABASE_URL: z.url().or(z.literal("")).optional(),
+  SUPABASE_SECRET_KEY: z.string().optional(),
 });
 
 const parsed = serverEnvSchema.safeParse(process.env);

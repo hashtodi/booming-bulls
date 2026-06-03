@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyLemonnCallback, KYC_REDIRECT_URL } from "@/lib/lemonn";
 import { issueInviteLink } from "@/lib/telegram";
+import { claimInvite, saveIssued } from "@/lib/invites-store";
+import { env } from "@/lib/env";
 import {
   signInviteToken,
   INVITE_COOKIE_NAME,
@@ -9,6 +11,13 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+// On a rare concurrent collision the loser gets 'wait' while the winner mints.
+// Retry briefly until the winner fills the row (mint = a Telegram round-trip,
+// ~hundreds of ms), then give up to /error-page rather than hang.
+const CLAIM_MAX_ATTEMPTS = 6;
+const CLAIM_RETRY_DELAY_MS = 350;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export async function GET(req: NextRequest) {
   const requestToken =
@@ -41,16 +50,67 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(new URL("/no-fno-trade", req.url));
 
     case "eligible": {
-      let inviteUrl: string;
-      try {
-        const invite = await issueInviteLink(result.user);
-        inviteUrl = invite.url;
-      } catch (err) {
-        console.error("[callback] issueInviteLink failed:", err);
+      // Dedup key. An eligible user with no client_id would create an invite
+      // we can't track — refuse rather than silently break the one-seat rule.
+      const clientId = result.user.clientId;
+      if (!clientId) {
+        console.error(
+          "[callback] eligible user has no client_id; refusing to issue an untracked invite",
+        );
         return NextResponse.redirect(new URL("/error-page", req.url));
       }
 
-      const token = signInviteToken(inviteUrl, INVITE_COOKIE_TTL_SECONDS);
+      const channelId = env.TELEGRAM_CHANNEL_ID ?? "";
+      const telegramConfigured = Boolean(env.TELEGRAM_BOT_TOKEN && channelId);
+
+      let inviteUrl: string | null = null;
+      try {
+        if (!telegramConfigured) {
+          // Placeholder mode (Telegram unconfigured): no real channel, so no
+          // dedup — just hand back the placeholder URL.
+          inviteUrl = (await issueInviteLink(result.user)).url;
+        } else {
+          // One seat per (channel_id, client_id), resolved atomically so two
+          // concurrent logins can't both mint a link. Exactly one caller is
+          // told to 'mint'; others 'serve' the existing link or briefly 'wait'.
+          for (let attempt = 0; attempt < CLAIM_MAX_ATTEMPTS; attempt++) {
+            const claim = await claimInvite(channelId, clientId);
+
+            if (claim.action === "consumed") {
+              return NextResponse.redirect(new URL("/already-member", req.url));
+            }
+            if (claim.action === "serve" && claim.inviteUrl) {
+              inviteUrl = claim.inviteUrl;
+              break;
+            }
+            if (claim.action === "mint") {
+              const invite = await issueInviteLink(result.user);
+              await saveIssued(channelId, clientId, invite.url, invite.expiresAt);
+              inviteUrl = invite.url;
+              break;
+            }
+            // 'wait': another request is mid-mint — back off and retry.
+            await sleep(CLAIM_RETRY_DELAY_MS);
+          }
+
+          if (!inviteUrl) {
+            console.error("[callback] claim_invite stuck in 'wait'; giving up");
+            return NextResponse.redirect(new URL("/error-page", req.url));
+          }
+        }
+      } catch (err) {
+        console.error("[callback] issue/dedup failed:", err);
+        return NextResponse.redirect(new URL("/error-page", req.url));
+      }
+
+      if (!inviteUrl) {
+        return NextResponse.redirect(new URL("/error-page", req.url));
+      }
+
+      const token = signInviteToken(
+        { url: inviteUrl, channelId, clientId },
+        INVITE_COOKIE_TTL_SECONDS,
+      );
       const response = NextResponse.redirect(new URL("/welcome", req.url));
       response.cookies.set({
         name: INVITE_COOKIE_NAME,
