@@ -195,7 +195,14 @@ export async function verifyLemonnCallback(
     details,
   };
 
-  return decideOutcome(user);
+  const outcome = decideOutcome(user);
+  // Light per-login trace: who logged in (client_id + name) and the result.
+  log.info("lemonn.user_details", {
+    client_id: user.clientId,
+    name: details.name ?? null,
+    outcome: outcome.kind,
+  });
+  return outcome;
 }
 
 
