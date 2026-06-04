@@ -79,9 +79,7 @@ fetch-user-details ──► is_dra_matched ──┬─ false ─────�
                                                                  │
                                                                  └─ COMPLETED ──► nse_fno && bse_fno ──┬─ !TRADE_READY ─► /not-trade-ready
                                                                                                        │
-                                                                                                       └─ TRADE_READY ──► fno_order_executed ──┬─ false ─► /no-fno-trade
-                                                                                                                                               │
-                                                                                                                                               └─ true ──► /welcome ✅
+                                                                                                       └─ TRADE_READY ──► /welcome ✅
 ```
 
 | Outcome | Landing page |
@@ -89,7 +87,6 @@ fetch-user-details ──► is_dra_matched ──┬─ false ─────�
 | `is_dra_matched !== true` | `/not-associated` |
 | `kyc_status !== "COMPLETED"` | external redirect → `https://kyc.lemonn.co.in` |
 | `nse_fno_status !== "TRADE_READY"` OR `bse_fno_status !== "TRADE_READY"` | `/not-trade-ready` |
-| `fno_order_executed !== true` | `/no-fno-trade` |
 | All pass | `/welcome` (invite-link cookie set) |
 | `request_token` missing (direct `/callback` hit) | `/` |
 | Lemonn API errored | `/error-page` |
@@ -202,7 +199,6 @@ src/
 │   ├── join/route.ts           ← /join      POST: verifies cookie, 303s to t.me, clears cookie. GET: 303 to / (no cookie touch).
 │   ├── not-associated/         ← /not-associated   is_dra_matched=false
 │   ├── not-trade-ready/        ← /not-trade-ready  FNO status check
-│   ├── no-fno-trade/           ← /no-fno-trade     no FNO trade executed
 │   ├── error-page/             ← /error-page       transient/auth failure
 │   └── test/                   ← /test + /test/run/<kind>  (deletable; see below)
 ├── lib/
@@ -267,7 +263,7 @@ No other files reference anything inside `src/app/test/` — deleting the direct
 With `ENABLE_TEST_MODE=true`:
 
 - Visit `http://localhost:3000/test` → click any "Test this outcome →" card.
-- Or hit `/test/run/<kind>` directly: `not_associated`, `kyc_pending`, `not_trade_ready`, `no_fno_trade`, `eligible`.
+- Or hit `/test/run/<kind>` directly: `not_associated`, `kyc_pending`, `not_trade_ready`, `eligible`.
 
 Without test mode, hitting `/callback` with no params or a bad token routes to `/error-page` via the real flow.
 

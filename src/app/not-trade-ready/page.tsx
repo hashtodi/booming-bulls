@@ -24,9 +24,9 @@ export default function NotTradeReadyPage() {
             <Info className="size-[18px]" aria-hidden />
           </span>
           <p className="text-sm leading-relaxed text-foreground/90">
-            Your VIP access will be activated only after you complete your
-            first F&amp;O trade. Accounts without a completed F&amp;O trade
-            will not be eligible for verification.
+            Your VIP access will be activated once F&amp;O trading is active on
+            your account. Accounts without F&amp;O activated won&rsquo;t be
+            eligible for verification.
           </p>
         </div>
 

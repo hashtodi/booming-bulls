@@ -59,7 +59,6 @@ export type VerifyOutcome =
   | { kind: "not_associated"; user: LemonnUser }
   | { kind: "kyc_pending"; user: LemonnUser }
   | { kind: "not_trade_ready"; user: LemonnUser }
-  | { kind: "no_fno_trade"; user: LemonnUser }
   | { kind: "transient_error"; reason: string };
 
 type LemonnErrorBody = {
@@ -165,10 +164,9 @@ export function decideOutcome(
     return { kind: "not_trade_ready", user };
   }
 
-  if (d.fno_order_executed !== true) {
-    return { kind: "no_fno_trade", user };
-  }
-
+  // F&O TRADE_READY is sufficient for eligibility. We no longer gate on
+  // fno_order_executed — a trade-ready user no longer needs a completed first
+  // F&O trade to get in (the retired `no_fno_trade` outcome).
   return { kind: "eligible", user };
 }
 

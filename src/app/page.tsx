@@ -40,13 +40,13 @@ export default function LandingPage() {
             />
             <StepRow
               n={2}
-              title="Complete your first F&O trade"
-              description="Place one F&O trade from your Lemonn account."
+              title="Complete your KYC on your account"
+              description="Enable Futures & Options trading on your Lemonn account."
             />
             <StepRow
               n={3}
               title="Return and click Unlock"
-              description="Come back to this page once your trade is done."
+              description="Come back to this page once F&O is active on your account."
             />
             <StepRow
               n={4}
