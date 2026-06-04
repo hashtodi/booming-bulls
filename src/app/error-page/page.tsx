@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { branding } from "@/lib/branding";
+import { branding, supportWhatsAppUrl } from "@/lib/branding";
 import { primaryCtaClassName } from "@/lib/cta";
 
 export default function TransientErrorPage() {
@@ -23,7 +23,16 @@ export default function TransientErrorPage() {
           Try again
         </Link>
         <p className="text-xs text-muted-foreground">
-          If this keeps happening, contact {branding.name} support.
+          If this keeps happening, contact {branding.name}{" "}
+          <a
+            href={supportWhatsAppUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="font-medium text-foreground underline underline-offset-4 hover:text-foreground/70"
+          >
+            support
+          </a>
+          .
         </p>
       </div>
     </main>

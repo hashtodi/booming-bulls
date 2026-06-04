@@ -1,4 +1,4 @@
-import { branding } from "@/lib/branding";
+import { branding, supportWhatsAppUrl } from "@/lib/branding";
 import { LoginButton } from "@/components/login-button";
 import { SignupButton } from "@/components/signup-button";
 
@@ -61,6 +61,20 @@ export default function LandingPage() {
           <SignupButton />
           <LoginButton />
         </div>
+
+        {/* Support */}
+        <p className="text-xs text-muted-foreground">
+          Need help? Contact {branding.name}{" "}
+          <a
+            href={supportWhatsAppUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="font-medium text-foreground underline underline-offset-4 hover:text-foreground/70"
+          >
+            support
+          </a>
+          .
+        </p>
       </div>
     </main>
   );

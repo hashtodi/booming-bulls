@@ -178,6 +178,9 @@ INVITE_TOKEN_SECRET=
 # ─── Branding (safe to expose to the browser) ───────────────────────────────
 NEXT_PUBLIC_INFLUENCER_NAME=
 NEXT_PUBLIC_INFLUENCER_TAGLINE=
+# Support WhatsApp shown on the error / already-member pages. Digits only,
+# country code included, no "+" (e.g. 917828599621). Defaults to 917828599621.
+NEXT_PUBLIC_SUPPORT_WHATSAPP=
 
 # ─── Optional: dev test mode (delete src/app/test/ to remove entirely) ──────
 # When "true", enables the /test page and /test/run/<kind> endpoints to mock

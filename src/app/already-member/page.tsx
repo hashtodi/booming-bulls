@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { CircleCheck } from "lucide-react";
-import { branding } from "@/lib/branding";
+import { branding, supportWhatsAppUrl } from "@/lib/branding";
 import { primaryCtaClassName } from "@/lib/cta";
 
 // Shown when an eligible user logs in again after their invite was already
@@ -22,7 +22,16 @@ export default function AlreadyMemberPage() {
         <p className="text-base text-muted-foreground">
           Your invite to the {branding.name} channel has already been claimed.
           Open Telegram to find the channel in your chats. If you can&rsquo;t
-          see it, contact {branding.name} support.
+          see it, contact {branding.name}{" "}
+          <a
+            href={supportWhatsAppUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="font-medium text-foreground underline underline-offset-4 hover:text-foreground/70"
+          >
+            support
+          </a>
+          .
         </p>
         <Link href="/" className={primaryCtaClassName}>
           Back to home
