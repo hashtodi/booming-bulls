@@ -3,6 +3,7 @@ import { verifyLemonnCallback, KYC_REDIRECT_URL } from "@/lib/lemonn";
 import { issueInviteLink } from "@/lib/telegram";
 import { recordLogin, claimInvite, saveIssued } from "@/lib/invites-store";
 import { env } from "@/lib/env";
+import { log, withLogContext } from "@/lib/log";
 import {
   signInviteToken,
   INVITE_COOKIE_NAME,
@@ -20,12 +21,21 @@ const CLAIM_RETRY_DELAY_MS = 350;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export async function GET(req: NextRequest) {
+  // Correlate every log line for this login under one request id (Vercel sets
+  // x-vercel-id). All logging here is server-side only — never reaches the
+  // browser. influencer is the DB tenant key for this deployment.
+  const requestId = req.headers.get("x-vercel-id") ?? undefined;
+  return withLogContext(
+    { route: "callback", requestId, influencer: env.INFLUENCER_SLUG },
+    () => handleCallback(req),
+  );
+}
+
+async function handleCallback(req: NextRequest) {
   const requestToken =
     req.nextUrl.searchParams.get("request_token") ?? undefined;
   const result = await verifyLemonnCallback(requestToken);
 
-  // DB tenant key for the shared `entries` table. Distinct from
-  // TELEGRAM_CHANNEL_ID (the Telegram target) — see lib/invites-store.ts.
   const influencer = env.INFLUENCER_SLUG;
 
   // Log every login to `entries` (name + outcome + association + raw Lemonn
@@ -43,7 +53,9 @@ export async function GET(req: NextRequest) {
         userDetail: details,
       });
     } catch (err) {
-      console.error("[callback] recordLogin failed (non-blocking):", err);
+      log.error("callback.record_login_failed", err, {
+        client_id: result.user.clientId,
+      });
     }
   }
 
@@ -77,9 +89,7 @@ export async function GET(req: NextRequest) {
       // we can't track — refuse rather than silently break the one-seat rule.
       const clientId = result.user.clientId;
       if (!clientId) {
-        console.error(
-          "[callback] eligible user has no client_id; refusing to issue an untracked invite",
-        );
+        log.error("callback.no_client_id");
         return NextResponse.redirect(new URL("/error-page", req.url));
       }
 
@@ -124,12 +134,14 @@ export async function GET(req: NextRequest) {
           }
 
           if (!inviteUrl) {
-            console.error("[callback] claim_invite stuck in 'wait'; giving up");
+            log.error("callback.claim_giveup", undefined, {
+              client_id: clientId,
+            });
             return NextResponse.redirect(new URL("/error-page", req.url));
           }
         }
       } catch (err) {
-        console.error("[callback] issue/dedup failed:", err);
+        log.error("callback.issue_failed", err, { client_id: clientId });
         return NextResponse.redirect(new URL("/error-page", req.url));
       }
 

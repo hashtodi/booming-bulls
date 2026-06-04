@@ -1,4 +1,4 @@
-# Lessons — booming-bulls
+# Lessons
 
 Patterns learned while working in this repo. Review at session start.
 
@@ -20,3 +20,14 @@ Patterns learned while working in this repo. Review at session start.
   - The `entries` table already gives `client_id`-level dedup: two tokens for one
     `client_id` resolve to one row, `claim_invite` prevents double-mint, and a
     failed-token (`transient_error`) request writes nothing.
+
+## Telegram invite links (testing gotcha)
+
+- **`t.me/+<hash>`'s "JOIN CHANNEL" button is a `tg://join?invite=…` deep link.**
+  On **desktop** it only works if Telegram Desktop is installed (registered as the
+  `tg://` handler) or you're logged into `web.telegram.org`; otherwise the click
+  silently does nothing. This is Telegram's own landing page, **not our code** —
+  our `/join` correctly 303-redirects to the unchanged `https://t.me/+hash`. Test
+  joins on **mobile** (the funnel's real audience) or desktop-with-app.
+- Links are `member_limit: 1` (single-use) and 24h TTL — a reused/expired link, or
+  an account already in the channel, also makes the JOIN button a no-op.

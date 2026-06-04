@@ -1,5 +1,6 @@
 import "server-only";
 import { env } from "./env";
+import { log } from "./log";
 import type { LemonnUser } from "./lemonn";
 
 export type InviteLink = {
@@ -47,10 +48,9 @@ export async function issueInviteLink(user: LemonnUser): Promise<InviteLink> {
 
   // Graceful fallback while the bot / channel aren't configured yet.
   if (!token || !chatId) {
-    console.warn(
-      "[telegram] TELEGRAM_BOT_TOKEN or TELEGRAM_CHANNEL_ID is empty. " +
-        "Returning placeholder invite URL. Fill both env vars to issue real links.",
-    );
+    log.warn("telegram.placeholder", {
+      reason: "bot_token_or_channel_id_unset",
+    });
     return {
       url: env.TELEGRAM_PLACEHOLDER_URL,
       source: "placeholder",
@@ -87,14 +87,6 @@ export async function issueInviteLink(user: LemonnUser): Promise<InviteLink> {
       break;
     } catch (err) {
       lastErr = err;
-      const raw = err instanceof Error ? err.message : String(err);
-      const cause =
-        err instanceof Error && err.cause
-          ? ` (cause: ${err.cause instanceof Error ? err.cause.message : String(err.cause)})`
-          : "";
-      console.warn(
-        `[telegram] createChatInviteLink network error on attempt ${attempt}/${RETRY_ATTEMPTS}: ${scrubToken(raw + cause, token)}`,
-      );
       if (attempt < RETRY_ATTEMPTS) {
         await sleep(RETRY_BACKOFF_MS);
       }
@@ -122,12 +114,6 @@ export async function issueInviteLink(user: LemonnUser): Promise<InviteLink> {
       `Telegram createChatInviteLink failed: HTTP ${res.status} ${scrubToken(description, token)}`,
     );
   }
-
-  console.log("[telegram] invite link issued:", {
-    client_id: user.clientId,
-    name: body.result.name,
-    expires_at: new Date(expireDate * 1000).toISOString(),
-  });
 
   return {
     url: body.result.invite_link,

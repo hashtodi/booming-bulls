@@ -18,7 +18,6 @@ export default async function WelcomePage() {
 
   const result = verifyInviteToken(token);
   if (!result.ok) {
-    console.warn("[welcome] invalid invite token:", result.reason);
     redirect("/");
   }
 

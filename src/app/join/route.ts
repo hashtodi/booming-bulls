@@ -4,6 +4,7 @@ import {
   INVITE_COOKIE_NAME,
 } from "@/lib/invite-token";
 import { markConsumed } from "@/lib/invites-store";
+import { log, withLogContext } from "@/lib/log";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,6 +16,11 @@ export const dynamic = "force-dynamic";
 // real click and landing the user on / instead of Telegram. POST is never
 // speculatively prefetched, so the cookie is only ever consumed on intent.
 export async function POST(req: NextRequest) {
+  const requestId = req.headers.get("x-vercel-id") ?? undefined;
+  return withLogContext({ route: "join", requestId }, () => handleJoin(req));
+}
+
+async function handleJoin(req: NextRequest) {
   const token = req.cookies.get(INVITE_COOKIE_NAME)?.value;
   if (!token) {
     return NextResponse.redirect(new URL("/", req.url), 303);
@@ -22,7 +28,6 @@ export async function POST(req: NextRequest) {
 
   const result = verifyInviteToken(token);
   if (!result.ok) {
-    console.warn("[join] invalid token:", result.reason);
     const res = NextResponse.redirect(new URL("/", req.url), 303);
     res.cookies.delete(INVITE_COOKIE_NAME);
     return res;
@@ -38,7 +43,10 @@ export async function POST(req: NextRequest) {
     try {
       await markConsumed(result.influencer, result.clientId);
     } catch (err) {
-      console.error("[join] markConsumed failed; refusing to redirect:", err);
+      log.error("join.consume_failed", err, {
+        influencer: result.influencer,
+        client_id: result.clientId,
+      });
       return NextResponse.redirect(new URL("/error-page", req.url), 303);
     }
   }
