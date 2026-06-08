@@ -75,18 +75,15 @@ The logic lives in `decideOutcome()` in `src/lib/lemonn.ts`. First failing check
 ```
 fetch-user-details ──► is_dra_matched ──┬─ false ──────────────────────────► /not-associated
                                         │
-                                        └─ true ──► kyc_status ──┬─ !COMPLETED ─► /kyc-pending
+                                        └─ true ──► kyc_status ──┬─ not COMPLETED/PROCESSING ─► /kyc-pending
                                                                  │
-                                                                 └─ COMPLETED ──► nse_fno && bse_fno ──┬─ !TRADE_READY ─► /not-trade-ready
-                                                                                                       │
-                                                                                                       └─ TRADE_READY ──► /welcome ✅
+                                                                 └─ COMPLETED / PROCESSING ──► /welcome ✅
 ```
 
 | Outcome | Landing page |
 |---|---|
 | `is_dra_matched !== true` | `/not-associated` |
-| `kyc_status !== "COMPLETED"` | `/kyc-pending` (links out to `https://kyc.lemonn.co.in`) |
-| `nse_fno_status !== "TRADE_READY"` OR `bse_fno_status !== "TRADE_READY"` | `/not-trade-ready` |
+| `kyc_status` not COMPLETED/PROCESSING (case-insensitive) | `/kyc-pending` (links out to `https://kyc.lemonn.co.in`) |
 | All pass | `/welcome` (invite-link cookie set) |
 | `request_token` missing (direct `/callback` hit) | `/` |
 | Lemonn API errored | `/error-page` |
@@ -202,7 +199,7 @@ src/
 │   ├── join/route.ts           ← /join      POST: verifies cookie, 303s to t.me, clears cookie. GET: 303 to / (no cookie touch).
 │   ├── not-associated/         ← /not-associated   is_dra_matched=false
 │   ├── kyc-pending/            ← /kyc-pending      kyc_status != COMPLETED
-│   ├── not-trade-ready/        ← /not-trade-ready  FNO status check
+│   ├── not-trade-ready/        ← /not-trade-ready  (legacy; F&O gate removed, no longer routed)
 │   ├── error-page/             ← /error-page       transient/auth failure
 │   └── test/                   ← /test + /test/run/<kind>  (deletable; see below)
 ├── lib/

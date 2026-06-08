@@ -149,20 +149,17 @@ export function decideOutcome(
     return { kind: "not_associated", user };
   }
 
-  if (d.kyc_status !== "COMPLETED") {
+  // KYC must be done (COMPLETED) or still in progress (PROCESSING). Matched
+  // case-insensitively so a casing change from Lemonn can't silently block a
+  // user; a missing/unknown status fails closed to kyc_pending.
+  const kyc = (d.kyc_status ?? "").toUpperCase();
+  if (kyc !== "COMPLETED" && kyc !== "PROCESSING") {
     return { kind: "kyc_pending", user };
   }
 
-  if (
-    d.nse_fno_status !== "TRADE_READY" ||
-    d.bse_fno_status !== "TRADE_READY"
-  ) {
-    return { kind: "not_trade_ready", user };
-  }
-
-  // F&O TRADE_READY is sufficient for eligibility. We no longer gate on
-  // fno_order_executed — a trade-ready user no longer needs a completed first
-  // F&O trade to get in (the retired `no_fno_trade` outcome).
+  // No F&O gate: associated + past KYC is enough to be eligible. The
+  // `not_trade_ready` outcome and its /not-trade-ready page are kept but are
+  // no longer produced here.
   return { kind: "eligible", user };
 }
 

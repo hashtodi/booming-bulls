@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Info } from "lucide-react";
-import { branding } from "@/lib/branding";
+import { branding, supportWhatsAppUrl } from "@/lib/branding";
 import { primaryCtaClassName } from "@/lib/cta";
 
 // Lemonn-owned KYC host. Users finish KYC here, then re-initiate the login
@@ -49,6 +49,19 @@ export default function KycPendingPage() {
         >
           Back to home
         </Link>
+
+        <p className="text-xs text-muted-foreground">
+          Need help? Contact {branding.name}{" "}
+          <a
+            href={supportWhatsAppUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="font-medium text-foreground underline underline-offset-4 hover:text-foreground/70"
+          >
+            support
+          </a>
+          .
+        </p>
       </div>
     </main>
   );
