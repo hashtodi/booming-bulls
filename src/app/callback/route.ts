@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyLemonnCallback, KYC_REDIRECT_URL } from "@/lib/lemonn";
+import { verifyLemonnCallback } from "@/lib/lemonn";
 import { issueInviteLink } from "@/lib/telegram";
 import { recordLogin, claimInvite, saveIssued } from "@/lib/invites-store";
 import { env } from "@/lib/env";
@@ -74,9 +74,9 @@ async function handleCallback(req: NextRequest) {
       return NextResponse.redirect(new URL("/not-associated", req.url));
 
     case "kyc_pending":
-      // External redirect to Lemonn's KYC site. User completes KYC there and
-      // would re-initiate the login flow afterwards.
-      return NextResponse.redirect(KYC_REDIRECT_URL);
+      // In-app page that explains KYC is pending and links out to Lemonn's KYC
+      // site. User completes KYC there and re-initiates the login flow after.
+      return NextResponse.redirect(new URL("/kyc-pending", req.url));
 
     case "not_trade_ready":
       return NextResponse.redirect(new URL("/not-trade-ready", req.url));

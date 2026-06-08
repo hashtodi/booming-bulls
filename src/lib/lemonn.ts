@@ -3,10 +3,6 @@ import crypto from "node:crypto";
 import { env } from "./env";
 import { log } from "./log";
 
-// External destination for users whose KYC isn't done. Lives here (not in env)
-// because it's a Lemonn-owned host, not an app config knob.
-export const KYC_REDIRECT_URL = "https://kyc.lemonn.co.in";
-
 // ASN.1 DER prefix for an Ed25519 PKCS#8 private key with a 32-byte raw seed.
 const ED25519_PKCS8_PREFIX = Buffer.from(
   "302e020100300506032b657004220420",
