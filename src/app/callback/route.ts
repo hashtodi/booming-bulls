@@ -108,10 +108,15 @@ async function handleCallback(req: NextRequest) {
           for (let attempt = 0; attempt < CLAIM_MAX_ATTEMPTS; attempt++) {
             const claim = await claimInvite(influencer, clientId);
 
-            if (claim.action === "consumed") {
-              return NextResponse.redirect(new URL("/already-member", req.url));
-            }
-            if (claim.action === "serve" && claim.inviteUrl) {
+            // A still-valid issued link OR an already-consumed seat: re-show
+            // the SAME stored link. A consumed seat is never re-minted (even
+            // once its link has expired, by design) — this lets a user who
+            // clicked Join but didn't finish get their original link back,
+            // without ever granting a second seat.
+            if (
+              (claim.action === "serve" || claim.action === "consumed") &&
+              claim.inviteUrl
+            ) {
               inviteUrl = claim.inviteUrl;
               break;
             }

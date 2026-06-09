@@ -4,7 +4,7 @@ export const branding = {
   tagline:
     process.env.NEXT_PUBLIC_INFLUENCER_TAGLINE ??
     "Unlock VIP Access",
-  // Support WhatsApp surfaced on the error / already-member pages. Digits only,
+  // Support WhatsApp surfaced on the error page. Digits only,
   // country code included, no "+", so it drops straight into a wa.me link.
   // Override per deployment via NEXT_PUBLIC_SUPPORT_WHATSAPP.
   support_whatsapp:

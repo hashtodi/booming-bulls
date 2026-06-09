@@ -34,11 +34,12 @@ async function handleJoin(req: NextRequest) {
   }
 
   // Mark the seat consumed BEFORE letting the user through, so a later re-login
-  // lands on /already-member instead of getting a fresh link. Strict: if the
-  // store write fails we do NOT redirect to Telegram — handing out access on an
-  // unrecorded seat is exactly the gap we're closing. Send them to /error-page
-  // with the cookie intact so they can retry once the store recovers. (A valid
-  // token always carries the influencer tenant key + client_id.)
+  // re-serves this same link (never minting a new one) instead of a fresh seat.
+  // Strict: if the store write fails we do NOT redirect to Telegram — handing
+  // out access on an unrecorded seat is exactly the gap we're closing. Send them
+  // to /error-page with the cookie intact so they can retry once the store
+  // recovers. (A valid token always carries the influencer tenant key +
+  // client_id.)
   if (result.influencer && result.clientId) {
     try {
       await markConsumed(result.influencer, result.clientId);
