@@ -137,10 +137,7 @@ async function fetchUserDetails(
 // assume earlier ones passed. Conservative defaults: missing fields treated
 // as the "fail" value so a malformed response never accidentally lets a user
 // through.
-//
-// Exported so the (deletable) dev test harness in src/app/test can dispatch
-// mocked details through the same logic without going through the network.
-export function decideOutcome(
+function decideOutcome(
   user: LemonnUser,
 ): Exclude<VerifyOutcome, { kind: "transient_error" }> {
   const d = user.details;

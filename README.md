@@ -178,13 +178,6 @@ NEXT_PUBLIC_INFLUENCER_TAGLINE=
 # Support WhatsApp shown on the error / already-member pages. Digits only,
 # country code included, no "+" (e.g. 917828599621). Defaults to 917828599621.
 NEXT_PUBLIC_SUPPORT_WHATSAPP=
-
-# ─── Optional: dev test mode (delete src/app/test/ to remove entirely) ──────
-# When "true", enables the /test page and /test/run/<kind> endpoints to mock
-# every branch of the decision tree without going through Lemonn.
-# Read directly from process.env (NOT validated in env.ts), so removing this
-# variable is a no-op for the rest of the app.
-ENABLE_TEST_MODE=
 ```
 
 ## Architecture
@@ -198,10 +191,9 @@ src/
 │   ├── welcome/page.tsx        ← /welcome   reads cookie, renders Join button
 │   ├── join/route.ts           ← /join      POST: verifies cookie, 303s to t.me, clears cookie. GET: 303 to / (no cookie touch).
 │   ├── not-associated/         ← /not-associated   is_dra_matched=false
-│   ├── kyc-pending/            ← /kyc-pending      kyc_status != COMPLETED
+│   ├── kyc-pending/            ← /kyc-pending      kyc_status not COMPLETED/PROCESSING
 │   ├── not-trade-ready/        ← /not-trade-ready  (legacy; F&O gate removed, no longer routed)
-│   ├── error-page/             ← /error-page       transient/auth failure
-│   └── test/                   ← /test + /test/run/<kind>  (deletable; see below)
+│   └── error-page/             ← /error-page       transient/auth failure
 ├── lib/
 │   ├── env.ts                  ← zod-validated env (fail-fast on boot)
 │   ├── lemonn.ts               ← Ed25519 signing, fetch-user-details, decideOutcome
@@ -238,35 +230,9 @@ scripts/
 | Purpose | Prove "this request comes from the partner who owns api_key X" | Prove "this cookie was issued by our server, unaltered, still in date" |
 | Lives in | HTTP header `x-signature` (outbound) | httpOnly cookie `lemonn_invite_token` |
 
-## Test mode — `/test` (deletable)
+## Testing without real Lemonn credentials
 
-Everything related to test mode lives inside `src/app/test/`. Three files:
-
-- `src/app/test/data.ts` — mock data, decision dispatch, `isTestModeEnabled()` helper
-- `src/app/test/page.tsx` — the visual `/test` page (decision tree + 5 cards)
-- `src/app/test/run/[kind]/route.ts` — server route that runs the mocked outcome
-
-Test mode is gated by the env var `ENABLE_TEST_MODE`. Set to `"true"` to enable, anything else (or unset) → both `/test` and `/test/run/<kind>` return 404.
-
-**When test mode is enabled and somebody hits `/test/run/eligible`, a real Telegram invite link is created and a real channel join is possible — Lemonn is fully bypassed.** Keep this in mind on production.
-
-To remove test mode entirely after you're done with it:
-
-```bash
-rm -rf src/app/test/
-# and optionally remove the ENABLE_TEST_MODE env var from Vercel / .env.local
-```
-
-No other files reference anything inside `src/app/test/` — deleting the directory is a complete uninstall. `decideOutcome` (which the test harness reuses) stays in `src/lib/lemonn.ts` because the real flow needs it; nothing else moves.
-
-### Testing without real Lemonn credentials
-
-With `ENABLE_TEST_MODE=true`:
-
-- Visit `http://localhost:3000/test` → click any "Test this outcome →" card.
-- Or hit `/test/run/<kind>` directly: `not_associated`, `kyc_pending`, `not_trade_ready`, `eligible`.
-
-Without test mode, hitting `/callback` with no params or a bad token routes to `/error-page` via the real flow.
+Hitting `/callback` directly with no `request_token` routes to `/`; a bad or expired token routes to `/error-page` via the real flow.
 
 The `scripts/` directory has three diagnostic helpers (instructions inside each file):
 

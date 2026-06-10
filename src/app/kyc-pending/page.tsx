@@ -4,8 +4,7 @@ import { branding, supportWhatsAppUrl } from "@/lib/branding";
 import { primaryCtaClassName } from "@/lib/cta";
 
 // Lemonn-owned KYC host. Users finish KYC here, then re-initiate the login
-// flow. Kept inline (like the F&O URLs on /not-trade-ready) since this page is
-// its only consumer.
+// flow. Kept inline since this page is its only consumer.
 const KYC_URL = "https://kyc.lemonn.co.in";
 
 export default function KycPendingPage() {
