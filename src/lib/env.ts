@@ -33,6 +33,14 @@ const serverEnvSchema = z.object({
   TELEGRAM_CHANNEL_ID: z.string().optional(),
   TELEGRAM_PLACEHOLDER_URL: z.url(),
 
+  // Shared secret echoed by Telegram in the X-Telegram-Bot-Api-Secret-Token
+  // header on every webhook call (set via setWebhook's secret_token). The
+  // /api/telegram/webhook route rejects requests whose header doesn't match.
+  // Optional so the app still boots before the webhook is configured; while
+  // unset the webhook route returns 403 (feature dormant).
+  // Generate with `openssl rand -hex 32`.
+  TELEGRAM_WEBHOOK_SECRET: z.string().optional(),
+
   // App-internal secret used to sign the invite-token cookie. Generated once
   // per deployment with `openssl rand -hex 32`. Kept separate from Lemonn's
   // secret so rotating one doesn't invalidate the other.
