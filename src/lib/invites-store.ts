@@ -164,32 +164,3 @@ export async function markConsumed(
     throw new Error(`entries markConsumed failed: ${error.message}`);
   }
 }
-
-// Record the Telegram identity of a user who actually JOINED the channel, found
-// by matching the invite-link URL they used against the row's invite_url. Writes
-// ONLY the two telegram_* columns, so — like recordLogin — it can never clobber
-// the invite lifecycle (invite_url / invite_state / expires_at / consumed_at).
-// Returns whether a row matched, so the caller can log unmatched joins (e.g. a
-// join via a link we didn't mint). The entries_set_updated_at trigger bumps
-// updated_at automatically.
-export async function recordTelegramJoin(
-  influencer: string,
-  inviteUrl: string,
-  tg: { userId: number; username: string | null },
-): Promise<{ matched: boolean }> {
-  const { data, error } = await getSupabaseAdmin()
-    .from(TABLE)
-    .update({
-      telegram_user_id: tg.userId,
-      telegram_username: tg.username,
-    })
-    .eq("influencer", influencer)
-    .eq("invite_url", inviteUrl)
-    .neq("invite_url", "") // never match the claim_invite placeholder ('')
-    .select("client_id");
-
-  if (error) {
-    throw new Error(`entries recordTelegramJoin failed: ${error.message}`);
-  }
-  return { matched: (data?.length ?? 0) > 0 };
-}
