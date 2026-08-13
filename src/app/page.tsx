@@ -19,8 +19,7 @@ export default function LandingPage() {
         <div className="flex flex-col items-center gap-3 text-center">
           <h1 className="text-balance text-3xl font-semibold leading-[1.05] tracking-tight sm:text-5xl">
             {branding.name}
-            <br />
-             VIP Access.
+            <span className="block">VIP Access</span>
           </h1>
           <p className="max-w-sm text-pretty text-sm leading-relaxed text-muted-foreground sm:text-base">
             Get real-time trade alerts, high-conviction setups, market insights, and members-only updates.
@@ -40,13 +39,13 @@ export default function LandingPage() {
             />
             <StepRow
               n={2}
-              title="Complete your KYC on your account"
-              description="Enable Futures & Options trading on your Lemonn account."
+              title="Complete your first F&O trade"
+              description="Place one F&O trade from your Lemonn account."
             />
             <StepRow
               n={3}
               title="Return and click Unlock"
-              description="Come back to this page once F&O is active on your account."
+              description="Come back to this page once your trade is done."
             />
             <StepRow
               n={4}

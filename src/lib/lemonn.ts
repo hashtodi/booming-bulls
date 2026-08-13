@@ -55,6 +55,7 @@ export type VerifyOutcome =
   | { kind: "not_associated"; user: LemonnUser }
   | { kind: "kyc_pending"; user: LemonnUser }
   | { kind: "not_trade_ready"; user: LemonnUser }
+  | { kind: "no_fno_trade"; user: LemonnUser }
   | { kind: "transient_error"; reason: string };
 
 type LemonnErrorBody = {
@@ -154,9 +155,17 @@ function decideOutcome(
     return { kind: "kyc_pending", user };
   }
 
-  // No F&O gate: associated + past KYC is enough to be eligible. The
-  // `not_trade_ready` outcome and its /not-trade-ready page are kept but are
-  // no longer produced here.
+  if (
+    d.nse_fno_status !== "TRADE_READY" ||
+    d.bse_fno_status !== "TRADE_READY"
+  ) {
+    return { kind: "not_trade_ready", user };
+  }
+
+  if (d.fno_order_executed !== true) {
+    return { kind: "no_fno_trade", user };
+  }
+
   return { kind: "eligible", user };
 }
 

@@ -81,6 +81,9 @@ async function handleCallback(req: NextRequest) {
     case "not_trade_ready":
       return NextResponse.redirect(new URL("/not-trade-ready", req.url));
 
+    case "no_fno_trade":
+      return NextResponse.redirect(new URL("/no-fno-trade", req.url));
+
     case "eligible": {
       // Dedup key. An eligible user with no client_id would create an invite
       // we can't track — refuse rather than silently break the one-seat rule.

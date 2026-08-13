@@ -1,9 +1,24 @@
 import Link from "next/link";
+import { headers } from "next/headers";
+import { userAgent } from "next/server";
 import { Info } from "lucide-react";
-import { branding } from "@/lib/branding";
+import { branding, supportWhatsAppUrl } from "@/lib/branding";
 import { primaryCtaClassName } from "@/lib/cta";
 
-export default function NotTradeReadyPage() {
+// Where we send users to place their first F&O trade. Mobile/tablet users go
+// to the Lemonn app's F&O home; desktop/laptop users get the web trading
+// terminal (the app deep-link isn't useful on a desktop browser).
+const MOBILE_FNO_URL = "https://lmnn.in/fno-home";
+const DESKTOP_FNO_URL = "https://tv.lemonn.co.in/";
+
+export default async function NoFnoTradePage() {
+  // Server-side UA sniff via Next's helper. `device.type` is "mobile" or
+  // "tablet" on touch devices and undefined on desktop. Reading headers()
+  // opts this route into dynamic rendering, which is fine for a status page.
+  const { device } = userAgent({ headers: await headers() });
+  const isMobile = device.type === "mobile" || device.type === "tablet";
+  const tradeUrl = isMobile ? MOBILE_FNO_URL : DESKTOP_FNO_URL;
+
   return (
     <main className="flex flex-1 items-center justify-center px-6 py-16">
       <div className="flex w-full max-w-md flex-col items-center gap-6 text-center">
@@ -11,11 +26,11 @@ export default function NotTradeReadyPage() {
           {branding.name}
         </span>
         <h1 className="text-2xl font-semibold tracking-tight">
-          You&rsquo;re not trade ready
+          Complete your first F&amp;O trade
         </h1>
         <p className="text-base text-muted-foreground">
-          Your F&amp;O trading isn&rsquo;t active on your Lemonn account yet.
-          Activate F&amp;O, then come back to join {branding.name}.
+          You&rsquo;re fully set up, but you haven&rsquo;t placed an F&amp;O
+          trade on your Lemonn account yet.
         </p>
 
         {/* Eligibility callout — the key requirement, made prominent. */}
@@ -31,12 +46,12 @@ export default function NotTradeReadyPage() {
         </div>
 
         <a
-          href="https://lmnn.in/welcome"
+          href={tradeUrl}
           target="_blank"
           rel="noreferrer"
           className={primaryCtaClassName}
         >
-          Go to Lemonn
+          Trade on Lemonn
         </a>
         <Link
           href="/"
@@ -44,6 +59,19 @@ export default function NotTradeReadyPage() {
         >
           Back to home
         </Link>
+
+        <p className="text-xs text-muted-foreground">
+          Need help? Contact {branding.name}{" "}
+          <a
+            href={supportWhatsAppUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="font-medium text-foreground underline underline-offset-4 hover:text-foreground/70"
+          >
+            support
+          </a>
+          .
+        </p>
       </div>
     </main>
   );

@@ -10,11 +10,8 @@ import { getSupabaseAdmin } from "./supabase";
 
 const TABLE = "entries";
 
-// The terminal login outcomes we persist; the transient_error case never
+// The five terminal login outcomes we persist; the transient_error case never
 // reaches the store. Mirrors the `outcome` CHECK constraint on `entries`.
-// `no_fno_trade` is legacy: trade-ready users are now eligible without a first
-// F&O trade, so it's no longer written, but it stays in the union (and the DB
-// CHECK) so historical rows that carry it remain valid.
 export type Outcome =
   | "eligible"
   | "not_associated"

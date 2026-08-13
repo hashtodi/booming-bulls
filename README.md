@@ -77,13 +77,19 @@ fetch-user-details ──► is_dra_matched ──┬─ false ─────�
                                         │
                                         └─ true ──► kyc_status ──┬─ not COMPLETED/PROCESSING ─► /kyc-pending
                                                                  │
-                                                                 └─ COMPLETED / PROCESSING ──► /welcome ✅
+                                                                 └─ COMPLETED/PROCESSING ──► nse_fno && bse_fno ──┬─ !TRADE_READY ─► /not-trade-ready
+                                                                                                                  │
+                                                                                                                  └─ TRADE_READY ──► fno_order_executed ──┬─ false ─► /no-fno-trade
+                                                                                                                                                          │
+                                                                                                                                                          └─ true ──► /welcome ✅
 ```
 
 | Outcome | Landing page |
 |---|---|
 | `is_dra_matched !== true` | `/not-associated` |
 | `kyc_status` not COMPLETED/PROCESSING (case-insensitive) | `/kyc-pending` (links out to `https://kyc.lemonn.co.in`) |
+| `nse_fno_status !== "TRADE_READY"` OR `bse_fno_status !== "TRADE_READY"` | `/not-trade-ready` |
+| `fno_order_executed !== true` | `/no-fno-trade` |
 | All pass | `/welcome` (invite-link cookie set) |
 | `request_token` missing (direct `/callback` hit) | `/` |
 | Lemonn API errored | `/error-page` |
@@ -192,7 +198,8 @@ src/
 │   ├── join/route.ts           ← /join      POST: verifies cookie, 303s to t.me, clears cookie. GET: 303 to / (no cookie touch).
 │   ├── not-associated/         ← /not-associated   is_dra_matched=false
 │   ├── kyc-pending/            ← /kyc-pending      kyc_status not COMPLETED/PROCESSING
-│   ├── not-trade-ready/        ← /not-trade-ready  (legacy; F&O gate removed, no longer routed)
+│   ├── not-trade-ready/        ← /not-trade-ready  nse/bse_fno_status != TRADE_READY
+│   ├── no-fno-trade/           ← /no-fno-trade     fno_order_executed=false (UA-aware trade CTA)
 │   └── error-page/             ← /error-page       transient/auth failure
 ├── lib/
 │   ├── env.ts                  ← zod-validated env (fail-fast on boot)
